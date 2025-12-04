@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Inscription - Vertimail</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <h2>Créer un compte 🚀</h2>
+
+            <form action="/register" method="post">
+                <input type="text" name="username" placeholder="Choisissez un pseudo" required>
+                <input type="password" name="password" placeholder="Choisissez un mot de passe" required minlength="4">
+                <p style="font-size:0.8rem; color:#6b7280; margin-bottom:15px;">
+                    Vos données seront chiffrées (SHA-256).
+                </p>
+                <button type="submit" class="btn" style="background-color: var(--success);">Valider l'inscription</button>
+            </form>
+
+            <div style="margin-top: 20px;">
+                <a href="/" class="btn btn-cancel" style="padding: 8px 15px; font-size: 0.8rem;">Annuler</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

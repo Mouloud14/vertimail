@@ -1,0 +1,63 @@
+# On ignore le dossier qui contient les mails et les mots de passe
+storage/
+
+# --- Vert.x ---
+.vertx/
+file-uploads/
+
+# --- Maven (Compilation) ---
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# --- IntelliJ IDEA (Ton logiciel) ---
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# --- Java (Fichiers standards) ---
+*.class
+*.log
+*.ctxt
+
+# --- Archives et packages (qu'on ne veut pas versionner) ---
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# --- Système (Windows / Mac) ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Eclipse (Au cas où un collègue utilise Eclipse) ---
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+.classpath
+.project
+
+.vscode/

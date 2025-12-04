@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Lecture | {{ mail.subject }}</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body style="background-color: var(--bg-color); padding: 20px;">
+
+    <div class="mail-view">
+        <div class="mail-header">
+            <h1 style="color: var(--primary);">{{ mail.subject }}</h1>
+            <div class="mail-meta">
+                <div><strong>De :</strong> {{ mail.from }}</div>
+                <div><strong>À :</strong> {{ mail.to }}</div>
+                <div><strong>Date :</strong> {{ mail.date }}</div>
+            </div>
+        </div>
+
+        <div class="mail-body">{{ mail.content }}</div>
+
+        <div class="mail-actions">
+            <a href="/box?username={{ username }}&folder={{ folder }}" class="btn btn-cancel">⬅ Retour</a>
+
+            {% if folder != 'draft' %}
+            <a href="/compose?user={{ username }}&recipient={{ mail.from }}&subject=Re: {{ mail.subject }}" class="btn btn-primary">Répondre ↩</a>
+            {% endif %}
+
+            <form action="/delete" method="post" style="margin:0; margin-left: auto;">
+                <input type="hidden" name="username" value="{{ username }}">
+                <input type="hidden" name="folder" value="{{ folder }}">
+                <input type="hidden" name="filename" value="{{ id }}">
+                <button type="submit" class="btn btn-danger">
+                     {% if folder == 'trash' %} Supprimer définitivement ❌ {% else %} Mettre à la corbeille 🗑️ {% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>

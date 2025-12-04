@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ folder | capitalize }} | Vertimail</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <h2>Vertimail 📧</h2>
+            <div class="user-info">
+                Connecté en tant que :<br>
+                <strong>{{ username }}</strong>
+            </div>
+
+            <a href="/compose?user={{ username }}" class="btn-compose">✏️ Nouveau Message</a>
+
+            <div class="menu">
+                <a href="/box?username={{ username }}&folder=inbox" class="{{ folder == 'inbox' ? 'active' : '' }}">📥 Inbox</a>
+                <a href="/box?username={{ username }}&folder=outbox" class="{{ folder == 'outbox' ? 'active' : '' }}">📤 Envoyés</a>
+                <a href="/box?username={{ username }}&folder=draft" class="{{ folder == 'draft' ? 'active' : '' }}">📝 Brouillons</a>
+                <a href="/box?username={{ username }}&folder=trash" class="{{ folder == 'trash' ? 'active' : '' }}">🗑️ Corbeille</a>
+            </div>
+
+            <div style="margin-top: auto;">
+                <a href="/" style="color: var(--danger); font-weight: 500; font-size: 0.9rem;">⛔ Se déconnecter</a>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <h1 style="margin-top:0; margin-bottom: 20px; color: var(--text-color);">
+                {{ folder | capitalize }}
+                <span style="font-size: 0.9rem; color: #9ca3af; font-weight: normal;">({{ mails | length }} messages)</span>
+            </h1>
+
+            <div class="email-list">
+                {% for mail in mails %}
+                <div class="email-item">
+                    <a href="/read?username={{ username }}&folder={{ folder }}&id={{ mail.id }}" class="email-link">
+                        <div class="email-sender">
+                             {% if folder == 'outbox' %}
+                                <span style="color:#9ca3af;">À:</span> {{ mail.to }}
+                             {% else %}
+                                {{ mail.from }}
+                             {% endif %}
+                        </div>
+                        <div class="email-subject">
+                            {% if mail.subject is empty %}
+                                <em>(Sans objet)</em>
+                            {% else %}
+                                {{ mail.subject }}
+                            {% endif %}
+                        </div>
+                        <div class="email-date">{{ mail.date | slice(11, 16) }}</div>
+                    </a>
+
+                    <form action="/delete" method="post" style="margin:0;">
+                        <input type="hidden" name="username" value="{{ username }}">
+                        <input type="hidden" name="folder" value="{{ folder }}">
+                        <input type="hidden" name="filename" value="{{ mail.id }}">
+                        <button type="submit" class="btn-delete" title="Supprimer">
+                            {% if folder == 'trash' %} ❌ {% else %} 🗑️ {% endif %}
+                        </button>
+                    </form>
+                </div>
+                {% else %}
+                <div style="padding: 50px; text-align: center; color: #9ca3af;">
+                    <div style="font-size: 3rem; margin-bottom: 10px;">📭</div>
+                    Ce dossier est vide pour le moment.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
