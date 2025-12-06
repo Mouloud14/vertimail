@@ -175,6 +175,63 @@ public class MainVerticle extends AbstractVerticle {
       });
     });
 
+    // ================================================================
+    // --- API MOBILE (Pour l'application Android en mode connecté) ---
+    // ================================================================
+
+    // 1. Vérifier le mot de passe (Login)
+    router.post("/api/login").handler(ctx -> {
+      String username = ctx.request().getFormAttribute("username");
+      String password = ctx.request().getFormAttribute("password");
+      String hashPath = "storage/" + username + "/password.hash";
+
+      vertx.fileSystem().exists(hashPath).onSuccess(exists -> {
+        if (!exists) {
+          ctx.json(new JsonObject().put("status", "error").put("message", "Utilisateur inconnu"));
+        } else {
+          vertx.fileSystem().readFile(hashPath).onSuccess(buffer -> {
+            if (buffer.toString().equals(hashPassword(password))) {
+              // C'est gagné !
+              ctx.json(new JsonObject().put("status", "ok").put("username", username));
+            } else {
+              ctx.json(new JsonObject().put("status", "error").put("message", "Mauvais mot de passe"));
+            }
+          });
+        }
+      });
+    });
+
+    // 2. Envoyer un mail authentifié (HTTP)
+    router.post("/api/send").handler(ctx -> {
+      String sender = ctx.request().getFormAttribute("sender");
+      String recipient = ctx.request().getFormAttribute("recipient");
+      String subject = ctx.request().getFormAttribute("subject");
+      String content = ctx.request().getFormAttribute("content");
+
+      // On vérifie que le destinataire existe
+      vertx.fileSystem().exists("storage/" + recipient).onSuccess(exists -> {
+        if (exists) {
+          JsonObject mail = new JsonObject()
+            .put("from", sender) // Cette fois, c'est le vrai pseudo !
+            .put("to", recipient)
+            .put("date", java.time.Instant.now().toString())
+            .put("subject", subject)
+            .put("content", content);
+
+          String filename = System.currentTimeMillis() + ".json";
+
+          // On écrit chez le destinataire ET l'expéditeur
+          vertx.fileSystem().writeFile("storage/" + recipient + "/inbox/" + filename, mail.toBuffer())
+            .onSuccess(v -> {
+              vertx.fileSystem().writeFile("storage/" + sender + "/outbox/" + filename, mail.toBuffer());
+              ctx.json(new JsonObject().put("status", "ok"));
+            });
+        } else {
+          ctx.json(new JsonObject().put("status", "error").put("message", "Destinataire introuvable"));
+        }
+      });
+    });
+
     // --- SERVEUR UDP ---
     DatagramSocket socket = vertx.createDatagramSocket();
     socket.listen(9999, "0.0.0.0").onSuccess(so -> {
