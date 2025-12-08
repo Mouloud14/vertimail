@@ -7,10 +7,7 @@ import java.net.InetAddress;
 public class TestUDP {
   public static void main(String[] args) {
     try {
-      // LE FORMAT OBLIGATOIRE :
-      // Ligne 1 : Destinataire (Doit être un pseudo qui existe, ex: mouloud)
-      // Ligne 2 : Sujet
-      // Ligne 3 : Contenu
+
       String message = "mouloud\nLe Corbeau\nJe te vois... je sais que tu codes en Java !";
 
       // On prépare le paquet

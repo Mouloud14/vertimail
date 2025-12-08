@@ -6,6 +6,7 @@ import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.datagram.DatagramSocket;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -33,10 +34,9 @@ public class MainVerticle extends AbstractVerticle {
 
     // --- ROUTE CSS (Indispensable pour le design) ---
     router.get("/style.css").handler(ctx -> {
-      // Essaie de lire le fichier dans les ressources
       vertx.fileSystem().readFile("src/main/resources/style.css")
         .onSuccess(buffer -> ctx.response().putHeader("content-type", "text/css").end(buffer))
-        .onFailure(err -> ctx.response().sendFile("style.css")); // Fallback
+        .onFailure(err -> ctx.response().sendFile("style.css"));
     });
 
     // --- ROUTES WEB ---
@@ -179,7 +179,7 @@ public class MainVerticle extends AbstractVerticle {
     // --- API MOBILE (Pour l'application Android en mode connecté) ---
     // ================================================================
 
-    // 1. Vérifier le mot de passe (Login)
+    // 1. Login API
     router.post("/api/login").handler(ctx -> {
       String username = ctx.request().getFormAttribute("username");
       String password = ctx.request().getFormAttribute("password");
@@ -191,7 +191,6 @@ public class MainVerticle extends AbstractVerticle {
         } else {
           vertx.fileSystem().readFile(hashPath).onSuccess(buffer -> {
             if (buffer.toString().equals(hashPassword(password))) {
-              // C'est gagné !
               ctx.json(new JsonObject().put("status", "ok").put("username", username));
             } else {
               ctx.json(new JsonObject().put("status", "error").put("message", "Mauvais mot de passe"));
@@ -201,18 +200,17 @@ public class MainVerticle extends AbstractVerticle {
       });
     });
 
-    // 2. Envoyer un mail authentifié (HTTP)
+    // 2. Send API
     router.post("/api/send").handler(ctx -> {
       String sender = ctx.request().getFormAttribute("sender");
       String recipient = ctx.request().getFormAttribute("recipient");
       String subject = ctx.request().getFormAttribute("subject");
       String content = ctx.request().getFormAttribute("content");
 
-      // On vérifie que le destinataire existe
       vertx.fileSystem().exists("storage/" + recipient).onSuccess(exists -> {
         if (exists) {
           JsonObject mail = new JsonObject()
-            .put("from", sender) // Cette fois, c'est le vrai pseudo !
+            .put("from", sender)
             .put("to", recipient)
             .put("date", java.time.Instant.now().toString())
             .put("subject", subject)
@@ -220,7 +218,6 @@ public class MainVerticle extends AbstractVerticle {
 
           String filename = System.currentTimeMillis() + ".json";
 
-          // On écrit chez le destinataire ET l'expéditeur
           vertx.fileSystem().writeFile("storage/" + recipient + "/inbox/" + filename, mail.toBuffer())
             .onSuccess(v -> {
               vertx.fileSystem().writeFile("storage/" + sender + "/outbox/" + filename, mail.toBuffer());
@@ -230,6 +227,39 @@ public class MainVerticle extends AbstractVerticle {
           ctx.json(new JsonObject().put("status", "error").put("message", "Destinataire introuvable"));
         }
       });
+    });
+
+    // 3. API Liste des mails
+    router.get("/api/mails").handler(ctx -> {
+      String username = ctx.request().getParam("username");
+      String folder = ctx.request().getParam("folder"); // "inbox" ou "outbox"
+
+      if (username == null || folder == null) {
+        ctx.json(new JsonObject().put("status", "error").put("message", "Manque username ou folder"));
+        return;
+      }
+
+      String path = "storage/" + username + "/" + folder;
+
+      vertx.fileSystem().exists(path).onSuccess(exists -> {
+        if (exists) {
+          vertx.fileSystem().readDir(path).onSuccess(files -> {
+            JsonArray emails = new JsonArray();
+            for (String filePath : files) {
+              try {
+                Buffer buffer = vertx.fileSystem().readFileBlocking(filePath);
+                JsonObject mailJson = new JsonObject(buffer.toString());
+                emails.add(mailJson);
+              } catch (Exception e) {
+                // fichier ignoré
+              }
+            }
+            ctx.json(new JsonObject().put("status", "ok").put("mails", emails));
+          });
+        } else {
+          ctx.json(new JsonObject().put("status", "ok").put("mails", new JsonArray()));
+        }
+      }).onFailure(err -> ctx.json(new JsonObject().put("status", "error")));
     });
 
     // --- SERVEUR UDP ---
@@ -280,9 +310,7 @@ public class MainVerticle extends AbstractVerticle {
     });
 
     // --- NETTOYAGE AUTO ---
-    // Pense à changer cette valeur pour le rendu final (30L * 24 * 60 * 60 * 1000L)
-    long MAX_AGE = 30 * 1000L; // 30 secondes pour le test
-
+    long MAX_AGE = 30 * 1000L;
     vertx.setPeriodic(10000, id -> {
       vertx.fileSystem().readDir("storage").onSuccess(users -> {
         for (String userPath : users) {
@@ -303,10 +331,35 @@ public class MainVerticle extends AbstractVerticle {
       }).onFailure(err -> {});
     });
 
-    vertx.createHttpServer().requestHandler(router).listen(8888).onSuccess(s -> {
-      startPromise.complete();
-      System.out.println("✅ Serveur Web sécurisé : http://localhost:8888");
-    });
+    // ============================================
+    // === DÉMARRAGE DU SERVEUR AVEC PORT DYNAMIQUE ===
+    // ============================================
+
+    // On regarde si Render nous donne un port (variable d'environnement "PORT")
+    // Sinon, on utilise 8888 par défaut
+    int port = 8888;
+    if (System.getenv("PORT") != null) {
+      try {
+        port = Integer.parseInt(System.getenv("PORT"));
+      } catch (NumberFormatException e) {
+        System.err.println("Port invalide, retour au 8888");
+      }
+    }
+
+    // Variable finale pour la lambda
+    int finalPort = port;
+
+    vertx.createHttpServer()
+      .requestHandler(router)
+      .listen(finalPort)
+      .onSuccess(s -> {
+        startPromise.complete();
+        System.out.println("✅ Serveur Web démarré sur le port " + finalPort);
+        if (finalPort == 8888) {
+          System.out.println("➡️  Lien local : http://localhost:8888");
+        }
+      })
+      .onFailure(startPromise::fail);
   }
 
   private String hashPassword(String password) {
