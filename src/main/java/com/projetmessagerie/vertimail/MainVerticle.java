@@ -335,8 +335,6 @@ public class MainVerticle extends AbstractVerticle {
     // === DÉMARRAGE DU SERVEUR AVEC PORT DYNAMIQUE ===
     // ============================================
 
-    // On regarde si Render nous donne un port (variable d'environnement "PORT")
-    // Sinon, on utilise 8888 par défaut
     int port = 8888;
     if (System.getenv("PORT") != null) {
       try {
@@ -346,7 +344,6 @@ public class MainVerticle extends AbstractVerticle {
       }
     }
 
-    // Variable finale pour la lambda
     int finalPort = port;
 
     vertx.createHttpServer()
@@ -376,8 +373,9 @@ public class MainVerticle extends AbstractVerticle {
     } catch (Exception e) { throw new RuntimeException(e); }
   }
 
+  // --- MAIN METHOD (Point d'entrée de l'application) ---
   public static void main(String[] args) {
-    Vertx vertx = Vertx.vertx();
+    io.vertx.core.Vertx vertx = io.vertx.core.Vertx.vertx();
     vertx.deployVerticle(new MainVerticle());
   }
 }
