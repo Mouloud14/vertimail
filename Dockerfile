@@ -11,7 +11,7 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 # On récupère le .jar créé à l'étape 1
 # (Attention: le nom *.jar prendra le premier fichier trouvé, c'est pratique)
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/target/*-fat.jar app.jar
 
 # Render nous donne un PORT dynamique via une variable d'environnement
 ENV PORT=8888
