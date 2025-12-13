@@ -2,41 +2,72 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Nouveau Message</title>
+    <title>Nouveau Message | Vertimail</title>
     <link rel="stylesheet" href="/style.css">
 </head>
-<body style="background-color: var(--bg-color); padding: 40px;">
+<body>
 
-    <div class="form-card">
-        <h2 style="margin-top:0;">Nouveau Message ✍️</h2>
+<div class="app-container">
+    {# --- Sidebar (Menu de gauche) --- #}
+    <aside class="sidebar">
+        <h1 class="app-title">Vertimail</h1>
 
-        <form method="post">
-            <input type="hidden" name="sender" value="{{ username }}">
+        <a href="/compose?user={{ username }}" class="btn-compose">Nouveau Message</a>
 
-            <div class="form-group">
-                <label>Destinataire :</label>
-                <input type="text" name="recipient" placeholder="..." value="{{ recipient }}">
+        <nav class="menu">
+            <a href="/box?username={{ username }}&folder=inbox" class="nav-link">
+                <span>Réception</span>
+                {% if unreadCount > 0 %}
+                    <span class="unread-badge">{{ unreadCount }}</span>
+                {% endif %}
+            </a>
+            <a href="/box?username={{ username }}&folder=outbox" class="nav-link">Envoyés</a>
+            <a href="/box?username={{ username }}&folder=draft" class="nav-link">Brouillons</a>
+            <a href="/box?username={{ username }}&folder=trash" class="nav-link">Corbeille</a>
+        </nav>
+
+        <div class="user-info">
+            Connecté en tant que :<br>
+            <strong>{{ username }}</strong>
+            <a href="/" class="logout-link">Se déconnecter</a>
+        </div>
+    </aside>
+
+    {# --- Contenu Principal (Formulaire de composition) --- #}
+    <main class="main-content">
+        <header class="content-header">
+            <h2>Nouveau Message</h2>
+        </header>
+
+        <div class="scrollable-content">
+            <div class="compose-container">
+                <form method="post">
+                    <input type="hidden" name="sender" value="{{ username }}">
+
+                    <div class="form-group">
+                        <label for="recipient">À :</label>
+                        <input type="text" id="recipient" name="recipient" class="form-control" value="{{ recipient }}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="subject">Sujet :</label>
+                        <input type="text" id="subject" name="subject" class="form-control" value="{{ subject }}" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="content">Message :</label>
+                        <textarea id="content" name="content" class="form-control" required></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 15px; margin-top: 20px;">
+                        <button type="submit" formaction="/send" class="btn" style="width: auto;">Envoyer</button>
+                        <button type="submit" formaction="/draft" class="btn-secondary" style="margin-top: 0; width: auto;">Sauvegarder Brouillon</button>
+                    </div>
+                </form>
             </div>
-
-            <div class="form-group">
-                <label>Sujet :</label>
-                <input type="text" name="subject" placeholder="Objet de votre message" value="{{ subject }}">
-            </div>
-
-            <div class="form-group">
-                <label>Message :</label>
-                <textarea name="content" style="height: 200px;">{{ content }}</textarea>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <button type="submit" formaction="/send" class="btn btn-primary">Envoyer 🚀</button>
-                    <button type="submit" formaction="/draft" class="btn btn-warning">Sauvegarder Brouillon 💾</button>
-                </div>
-                <a href="/box?username={{ username }}&folder=inbox" class="btn btn-cancel">Annuler</a>
-            </div>
-        </form>
-    </div>
+        </div>
+    </main>
+</div>
 
 </body>
 </html>

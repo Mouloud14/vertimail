@@ -5,24 +5,36 @@
     <title>Inscription - Vertimail</title>
     <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-    <div class="auth-container">
-        <div class="auth-box">
-            <h2>Créer un compte 🚀</h2>
+<body class="auth-page">
 
-            <form action="/register" method="post">
-                <input type="text" name="username" placeholder="Choisissez un pseudo" required>
-                <input type="password" name="password" placeholder="Choisissez un mot de passe" required minlength="4">
-                <p style="font-size:0.8rem; color:#6b7280; margin-bottom:15px;">
-                    Vos données seront chiffrées (SHA-256).
-                </p>
-                <button type="submit" class="btn" style="background-color: var(--success);">Valider l'inscription</button>
-            </form>
+<div class="auth-box">
+    <h2 style="color: var(--primary-color);">Vertimail</h2>
+    <h3>Créez votre nouveau compte</h3>
 
-            <div style="margin-top: 20px;">
-                <a href="/" class="btn btn-cancel" style="padding: 8px 15px; font-size: 0.8rem;">Annuler</a>
-            </div>
+    <form action="/register" method="post" style="margin-top: 30px;">
+        <div class="form-group">
+            <label for="username">Nom d'utilisateur</label>
+            <input type="text" id="username" name="username" class="form-control" required>
         </div>
-    </div>
+
+        <div class="form-group">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" class="form-control" required>
+            <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 5px;">
+                Min. 8 caractères, 1 majuscule, 1 chiffre, 1 symbole.
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label for="confirmPassword">Confirmer le mot de passe</label>
+            <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
+        </div>
+
+        <button type="submit" class="btn">S'inscrire</button>
+    </form>
+
+    <a href="/" class="btn btn-secondary">J'ai déjà un compte</a>
+</div>
+
 </body>
 </html>

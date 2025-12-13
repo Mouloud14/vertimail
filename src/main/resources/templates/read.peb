@@ -2,40 +2,84 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Lecture | {{ mail.subject }}</title>
+    <title>Lecture | Vertimail</title>
     <link rel="stylesheet" href="/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body style="background-color: var(--bg-color); padding: 20px;">
+<body>
 
-    <div class="mail-view">
-        <div class="mail-header">
-            <h1 style="color: var(--primary);">{{ mail.subject }}</h1>
-            <div class="mail-meta">
-                <div><strong>De :</strong> {{ mail.from }}</div>
-                <div><strong>À :</strong> {{ mail.to }}</div>
-                <div><strong>Date :</strong> {{ mail.date }}</div>
+<div class="app-container">
+    {# --- Sidebar --- #}
+    <aside class="sidebar">
+        <h1 class="app-title">Vertimail</h1>
+        <a href="/compose?user={{ username }}" class="btn-compose">Nouveau Message</a>
+        <nav class="menu">
+            <a href="/box?username={{ username }}&folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
+                <span>Réception</span>
+                {% if unreadCount > 0 %}
+                    <span class="unread-badge">{{ unreadCount }}</span>
+                {% endif %}
+            </a>
+            <a href="/box?username={{ username }}&folder=outbox" class="nav-link {{ folder == 'outbox' ? 'active' : '' }}">Envoyés</a>
+            <a href="/box?username={{ username }}&folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
+            <a href="/box?username={{ username }}&folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
+        </nav>
+        <div class="user-info">
+            Connecté en tant que :<br>
+            <strong>{{ username }}</strong>
+            <a href="/" class="logout-link">Se déconnecter</a>
+        </div>
+    </aside>
+
+    {# --- Contenu Principal --- #}
+    <main class="main-content">
+        <header class="content-header">
+            <a href="/box?username={{ username }}&folder={{ folder }}" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">&larr; Retour</a>
+        </header>
+
+        <div class="scrollable-content">
+            <div class="email-view">
+                <div class="email-card">
+                    <div class="email-view-header">
+                        <h1 class="email-view-subject">{{ mail.subject }}</h1>
+                        <div class="email-view-meta">
+                            <div>
+                                <span class="sender-name">{{ mail.from }}</span>
+                                <span class="sender-email">à {{ mail.to }}</span>
+                            </div>
+                            <div class="email-date-detail">
+                                {{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }} à {{ mail.date | slice(11, 16) }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="email-view-body">
+                        {{ mail.content }}
+                    </div>
+
+                    <div class="mail-actions">
+                        {% if folder != 'draft' and folder != 'trash' %}
+                            {% set newSubject = mail.subject %}
+                            {% if not mail.subject.startsWith("Re:") %}
+                                {% set newSubject = "Re: " + mail.subject %}
+                            {% endif %}
+                            <a href="/compose?user={{ username }}&recipient={{ mail.from }}&subject={{ newSubject }}" class="btn-action primary">Répondre</a>
+                        {% endif %}
+
+                        <form action="/delete" method="post" style="margin: 0;">
+                            <input type="hidden" name="username" value="{{ username }}">
+                            <input type="hidden" name="folder" value="{{ folder }}">
+                            <input type="hidden" name="filename" value="{{ id }}">
+                            <button type="submit" class="btn-action danger">Supprimer</button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div class="mail-body">{{ mail.content }}</div>
-
-        <div class="mail-actions">
-            <a href="/box?username={{ username }}&folder={{ folder }}" class="btn btn-cancel">⬅ Retour</a>
-
-            {% if folder != 'draft' %}
-            <a href="/compose?user={{ username }}&recipient={{ mail.from }}&subject=Re: {{ mail.subject }}" class="btn btn-primary">Répondre ↩</a>
-            {% endif %}
-
-            <form action="/delete" method="post" style="margin:0; margin-left: auto;">
-                <input type="hidden" name="username" value="{{ username }}">
-                <input type="hidden" name="folder" value="{{ folder }}">
-                <input type="hidden" name="filename" value="{{ id }}">
-                <button type="submit" class="btn btn-danger">
-                     {% if folder == 'trash' %} Supprimer définitivement ❌ {% else %} Mettre à la corbeille 🗑️ {% endif %}
-                </button>
-            </form>
-        </div>
-    </div>
+    </main>
+</div>
 
 </body>
 </html>

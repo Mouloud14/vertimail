@@ -6,72 +6,60 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="app-container">
-        <div class="sidebar">
-            <h2>Vertimail 📧</h2>
-            <div class="user-info">
-                Connecté en tant que :<br>
-                <strong>{{ username }}</strong>
-            </div>
 
-            <a href="/compose?user={{ username }}" class="btn-compose">✏️ Nouveau Message</a>
+<div class="app-container">
+    {# --- Sidebar (Menu de gauche) --- #}
+    <aside class="sidebar">
+        <h1 class="app-title">Vertimail</h1>
 
-            <div class="menu">
-                <a href="/box?username={{ username }}&folder=inbox" class="{{ folder == 'inbox' ? 'active' : '' }}">📥 Inbox</a>
-                <a href="/box?username={{ username }}&folder=outbox" class="{{ folder == 'outbox' ? 'active' : '' }}">📤 Envoyés</a>
-                <a href="/box?username={{ username }}&folder=draft" class="{{ folder == 'draft' ? 'active' : '' }}">📝 Brouillons</a>
-                <a href="/box?username={{ username }}&folder=trash" class="{{ folder == 'trash' ? 'active' : '' }}">🗑️ Corbeille</a>
-            </div>
+        <a href="/compose?user={{ username }}" class="btn-compose">Nouveau Message</a>
 
-            <div style="margin-top: auto;">
-                <a href="/" style="color: var(--danger); font-weight: 500; font-size: 0.9rem;">⛔ Se déconnecter</a>
-            </div>
+        <nav class="menu">
+            <a href="/box?username={{ username }}&folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
+                <span>Réception</span>
+                {% if unreadCount > 0 %}
+                    <span class="unread-badge">{{ unreadCount }}</span>
+                {% endif %}
+            </a>
+            <a href="/box?username={{ username }}&folder=outbox" class="nav-link {{ folder == 'outbox' ? 'active' : '' }}">Envoyés</a>
+            <a href="/box?username={{ username }}&folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
+            <a href="/box?username={{ username }}&folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
+        </nav>
+
+        <div class="user-info">
+            Connecté en tant que :<br>
+            <strong>{{ username }}</strong>
+            <a href="/" class="logout-link">Se déconnecter</a>
         </div>
+    </aside>
 
-        <div class="main-content">
-            <h1 style="margin-top:0; margin-bottom: 20px; color: var(--text-color);">
-                {{ folder | capitalize }}
-                <span style="font-size: 0.9rem; color: #9ca3af; font-weight: normal;">({{ mails | length }} messages)</span>
-            </h1>
+    {# --- Contenu Principal (Liste des emails) --- #}
+    <main class="main-content">
+        <header class="content-header">
+            <h2>{{ folder | capitalize }}</h2>
+            <span>{{ mails | length }} messages</span>
+        </header>
 
-            <div class="email-list">
-                {% for mail in mails %}
-                <div class="email-item">
-                    <a href="/read?username={{ username }}&folder={{ folder }}&id={{ mail.id }}" class="email-link">
-                        <div class="email-sender">
-                             {% if folder == 'outbox' %}
-                                <span style="color:#9ca3af;">À:</span> {{ mail.to }}
-                             {% else %}
-                                {{ mail.from }}
-                             {% endif %}
-                        </div>
-                        <div class="email-subject">
-                            {% if mail.subject is empty %}
-                                <em>(Sans objet)</em>
-                            {% else %}
-                                {{ mail.subject }}
-                            {% endif %}
-                        </div>
-                        <div class="email-date">{{ mail.date | slice(11, 16) }}</div>
-                    </a>
-
-                    <form action="/delete" method="post" style="margin:0;">
-                        <input type="hidden" name="username" value="{{ username }}">
-                        <input type="hidden" name="folder" value="{{ folder }}">
-                        <input type="hidden" name="filename" value="{{ mail.id }}">
-                        <button type="submit" class="btn-delete" title="Supprimer">
-                            {% if folder == 'trash' %} ❌ {% else %} 🗑️ {% endif %}
-                        </button>
-                    </form>
-                </div>
+        <div class="scrollable-content">
+            <ul class="email-list">
+                {% if mails is empty %}
+                    <li style="text-align: center; padding: 50px; color: var(--text-muted);">Ce dossier est vide.</li>
                 {% else %}
-                <div style="padding: 50px; text-align: center; color: #9ca3af;">
-                    <div style="font-size: 3rem; margin-bottom: 10px;">📭</div>
-                    Ce dossier est vide pour le moment.
-                </div>
-                {% endfor %}
-            </div>
+                    {% for mail in mails %}
+                        {# On applique le style 'unread' SEULEMENT si on est dans l'INBOX et que le message n'est pas lu #}
+                        {% set isUnread = (folder == 'inbox' and not mail.isRead) %}
+
+                        <a href="/read?username={{ username }}&folder={{ folder }}&id={{ mail.id }}" class="email-item {{ isUnread ? 'unread' : '' }}">
+                            <div class="email-sender">{{ folder == 'outbox' ? 'À : ' ~ mail.to : mail.from }}</div>
+                            <div class="email-subject">{{ mail.subject | default('(Sans objet)') }}</div>
+                            <div class="email-date">{{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }}</div>
+                        </a>
+                    {% endfor %}
+                {% endif %}
+            </ul>
         </div>
-    </div>
+    </main>
+</div>
+
 </body>
 </html>

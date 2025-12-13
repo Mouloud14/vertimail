@@ -20,7 +20,7 @@
     <junit-jupiter.version>5.9.1</junit-jupiter.version>
 
     <main.verticle>com.projetmessagerie.vertimail.MainVerticle</main.verticle>
-    <launcher.class>io.vertx.launcher.application.VertxApplication</launcher.class>
+    <launcher.class>io.vertx.core.Launcher</launcher.class>
   </properties>
 
   <dependencyManagement>
@@ -36,6 +36,11 @@
   </dependencyManagement>
 
   <dependencies>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.13</version>
+    </dependency>
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-launcher-application</artifactId>
@@ -91,7 +96,8 @@
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <manifestEntries>
-                    <Main-Class>com.projetmessagerie.vertimail.MainVerticle</Main-Class>
+                    <Main-Class>${launcher.class}</Main-Class>
+                    <Main-Verticle>${main.verticle}</Main-Verticle>
                   </manifestEntries>
                 </transformer>
               </transformers>
@@ -113,6 +119,7 @@
         <configuration>
           <mainClass>${launcher.class}</mainClass>
           <arguments>
+            <argument>run</argument>
             <argument>${main.verticle}</argument>
           </arguments>
         </configuration>
