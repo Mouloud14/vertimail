@@ -40,12 +40,16 @@
     {# --- Contenu Principal (Formulaire de composition) --- #}
     <main class="main-content">
         <header class="content-header">
-            <h2>Nouveau Message</h2>
+            <h2>{{ draftId ? 'Modifier le brouillon' : 'Nouveau Message' }}</h2>
         </header>
 
         <div class="scrollable-content">
             <div class="compose-container">
                 <form method="post" enctype="multipart/form-data">
+                    {# Champ caché pour l'ID du brouillon #}
+                    {% if draftId %}
+                        <input type="hidden" name="draftId" value="{{ draftId }}">
+                    {% endif %}
 
                     <div class="form-group">
                         <label for="recipient">À :</label>
@@ -59,7 +63,7 @@
 
                     <div class="form-group">
                         <label for="content">Message :</label>
-                        <textarea id="content" name="content" class="form-control" required></textarea>
+                        <textarea id="content" name="content" class="form-control" required>{{ content }}</textarea>
                     </div>
 
                     {# Upload stylisé #}

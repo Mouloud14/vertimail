@@ -57,8 +57,15 @@
                         {# On applique le style 'unread' SEULEMENT si on est dans l'INBOX et que le message n'est pas lu #}
                         {% set isUnread = (folder == 'inbox' and not mail.isRead) %}
 
+                        {# LOGIQUE BROUILLON : Si c'est un brouillon, on va vers /compose, sinon vers /read #}
+                        {% if folder == 'draft' %}
+                            {% set linkUrl = "/compose?draftId=" + mail.id %}
+                        {% else %}
+                            {% set linkUrl = "/read?folder=" + folder + "&id=" + mail.id %}
+                        {% endif %}
+
                         <li class="email-item {{ isUnread ? 'unread' : '' }}" data-search="{{ mail.subject }} {{ mail.from }} {{ mail.to }}">
-                            {# Étoile Important #}
+                            {# Étoile Important (sauf pour les brouillons où ça a moins de sens, mais on peut laisser) #}
                             <form action="/toggle-important" method="post" style="margin: 0; margin-right: 10px;">
                                 <input type="hidden" name="folder" value="{{ folder }}">
                                 <input type="hidden" name="filename" value="{{ mail.id }}">
@@ -67,8 +74,8 @@
                                 </button>
                             </form>
 
-                            <a href="/read?folder={{ folder }}&id={{ mail.id }}" class="email-link">
-                                <div class="email-sender">{{ folder == 'outbox' ? 'À : ' ~ mail.to : mail.from }}</div>
+                            <a href="{{ linkUrl }}" class="email-link">
+                                <div class="email-sender">{{ folder == 'outbox' or folder == 'draft' ? 'À : ' ~ mail.to : mail.from }}</div>
                                 <div class="email-subject">{{ mail.subject | default('(Sans objet)') }}</div>
                                 <div class="email-date">{{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }}</div>
                             </a>
