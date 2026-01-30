@@ -12,24 +12,28 @@
     <aside class="sidebar">
         <h1 class="app-title">Vertimail</h1>
 
-        <a href="/compose?user={{ username }}" class="btn-compose">Nouveau Message</a>
+        <a href="/compose" class="btn-compose">Nouveau Message</a>
 
         <nav class="menu">
-            <a href="/box?username={{ username }}&folder=inbox" class="nav-link">
+            <a href="/box?folder=inbox" class="nav-link">
                 <span>Réception</span>
                 {% if unreadCount > 0 %}
                     <span class="unread-badge">{{ unreadCount }}</span>
                 {% endif %}
             </a>
-            <a href="/box?username={{ username }}&folder=outbox" class="nav-link">Envoyés</a>
-            <a href="/box?username={{ username }}&folder=draft" class="nav-link">Brouillons</a>
-            <a href="/box?username={{ username }}&folder=trash" class="nav-link">Corbeille</a>
+            <a href="/box?folder=outbox" class="nav-link">Envoyés</a>
+            <a href="/box?folder=draft" class="nav-link">Brouillons</a>
+            <a href="/box?folder=trash" class="nav-link">Corbeille</a>
         </nav>
 
         <div class="user-info">
             Connecté en tant que :<br>
             <strong>{{ username }}</strong>
-            <a href="/" class="logout-link">Se déconnecter</a>
+            <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
+                Espace utilisé : <strong>{{ userSpace }}</strong>
+            </div>
+            <a href="/settings" style="display: block; margin-top: 10px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">⚙️ Paramètres</a>
+            <a href="/logout" class="logout-link">Se déconnecter</a>
         </div>
     </aside>
 
@@ -41,8 +45,7 @@
 
         <div class="scrollable-content">
             <div class="compose-container">
-                <form method="post">
-                    <input type="hidden" name="sender" value="{{ username }}">
+                <form method="post" enctype="multipart/form-data">
 
                     <div class="form-group">
                         <label for="recipient">À :</label>
@@ -59,6 +62,17 @@
                         <textarea id="content" name="content" class="form-control" required></textarea>
                     </div>
 
+                    {# Upload stylisé #}
+                    <div class="form-group">
+                        <div class="file-upload-wrapper">
+                            <input type="file" id="attachment" name="attachment" class="file-upload-input" multiple onchange="updateFileList()">
+                            <label for="attachment" class="file-upload-btn">
+                                <span style="font-size: 1.2rem;">📎</span> Joindre des fichiers
+                            </label>
+                        </div>
+                        <div id="fileList" class="file-list"></div>
+                    </div>
+
                     <div style="display: flex; gap: 15px; margin-top: 20px;">
                         <button type="submit" formaction="/send" class="btn" style="width: auto;">Envoyer</button>
                         <button type="submit" formaction="/draft" class="btn-secondary" style="margin-top: 0; width: auto;">Sauvegarder Brouillon</button>
@@ -68,6 +82,22 @@
         </div>
     </main>
 </div>
+
+<script>
+    function updateFileList() {
+        const input = document.getElementById('attachment');
+        const list = document.getElementById('fileList');
+        list.innerHTML = ''; // Vider la liste
+
+        for (let i = 0; i < input.files.length; i++) {
+            const file = input.files[i];
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.innerHTML = '📄 ' + file.name + ' <span style="color:#9ca3af; font-size:0.8em;">(' + (file.size / 1024).toFixed(1) + ' Ko)</span>';
+            list.appendChild(item);
+        }
+    }
+</script>
 
 </body>
 </html>

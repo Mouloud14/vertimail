@@ -38,7 +38,17 @@
                     </svg>
                 </button>
             </div>
+            <div style="text-align: right; margin-top: 5px;">
+                <a href="/forgot-password" style="font-size: 0.85rem; color: var(--primary-color); text-decoration: none;">Mot de passe oublié ?</a>
+            </div>
         </div>
+
+        {# Option Se souvenir de moi #}
+        <div class="form-group" style="display: flex; align-items: center; margin-bottom: 20px;">
+            <input type="checkbox" id="remember" name="remember" style="width: auto; margin-right: 10px; cursor: pointer;">
+            <label for="remember" style="margin: 0; font-weight: normal; cursor: pointer; color: var(--text-muted);">Se souvenir de moi</label>
+        </div>
+
         <button type="submit" class="btn">Se connecter</button>
     </form>
 

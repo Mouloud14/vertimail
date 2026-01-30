@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Paramètres | Vertimail</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="app-container">
+    {# --- Sidebar --- #}
+    <aside class="sidebar">
+        <h1 class="app-title">Vertimail</h1>
+
+        <a href="/compose" class="btn-compose">Nouveau Message</a>
+
+        <nav class="menu">
+            <a href="/box?folder=inbox" class="nav-link">
+                <span>Réception</span>
+                {% if unreadCount > 0 %}
+                    <span class="unread-badge">{{ unreadCount }}</span>
+                {% endif %}
+            </a>
+            <a href="/box?folder=outbox" class="nav-link">Envoyés</a>
+            <a href="/box?folder=draft" class="nav-link">Brouillons</a>
+            <a href="/box?folder=trash" class="nav-link">Corbeille</a>
+        </nav>
+
+        <div class="user-info">
+            Connecté en tant que :<br>
+            <strong>{{ username }}</strong>
+            <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
+                Espace utilisé : <strong>{{ userSpace }}</strong>
+            </div>
+            <a href="/settings" style="display: block; margin-top: 10px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">⚙️ Paramètres</a>
+            <a href="/logout" class="logout-link">Se déconnecter</a>
+        </div>
+    </aside>
+
+    {# --- Contenu Principal --- #}
+    <main class="main-content">
+        <header class="content-header">
+            <h2>Paramètres du compte</h2>
+        </header>
+
+        <div class="scrollable-content">
+            <div class="compose-container">
+
+                {% if success %}
+                    <p style="background-color: #dcfce7; color: #166534; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-weight: 500;">
+                        {{ success }}
+                    </p>
+                {% endif %}
+
+                {% if error %}
+                    <p style="color: var(--danger-color); margin-bottom: 15px; font-weight: 500;">{{ error }}</p>
+                {% endif %}
+
+                <form action="/settings/password" method="post">
+                    <h3 style="margin-top: 0; color: var(--text-color);">Changer le mot de passe</h3>
+
+                    <div class="form-group">
+                        <label for="oldPassword">Ancien mot de passe</label>
+                        <input type="password" id="oldPassword" name="oldPassword" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="newPassword">Nouveau mot de passe</label>
+                        <input type="password" id="newPassword" name="newPassword" class="form-control" required>
+                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 5px;">
+                            Min. 8 caractères, 1 majuscule, 1 chiffre, 1 symbole.
+                        </small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirmer le nouveau mot de passe</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
+                    </div>
+
+                    <button type="submit" class="btn" style="width: auto;">Mettre à jour</button>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+
+</body>
+</html>

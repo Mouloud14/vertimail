@@ -12,24 +12,28 @@
     <aside class="sidebar">
         <h1 class="app-title">Vertimail</h1>
 
-        <a href="/compose?user={{ username }}" class="btn-compose">Nouveau Message</a>
+        <a href="/compose" class="btn-compose">Nouveau Message</a>
 
         <nav class="menu">
-            <a href="/box?username={{ username }}&folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
+            <a href="/box?folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
                 <span>Réception</span>
                 {% if unreadCount > 0 %}
                     <span class="unread-badge">{{ unreadCount }}</span>
                 {% endif %}
             </a>
-            <a href="/box?username={{ username }}&folder=outbox" class="nav-link {{ folder == 'outbox' ? 'active' : '' }}">Envoyés</a>
-            <a href="/box?username={{ username }}&folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
-            <a href="/box?username={{ username }}&folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
+            <a href="/box?folder=outbox" class="nav-link {{ folder == 'outbox' ? 'active' : '' }}">Envoyés</a>
+            <a href="/box?folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
+            <a href="/box?folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
         </nav>
 
         <div class="user-info">
             Connecté en tant que :<br>
             <strong>{{ username }}</strong>
-            <a href="/" class="logout-link">Se déconnecter</a>
+            <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
+                Espace utilisé : <strong>{{ userSpace }}</strong>
+            </div>
+            <a href="/settings" style="display: block; margin-top: 10px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">⚙️ Paramètres</a>
+            <a href="/logout" class="logout-link">Se déconnecter</a>
         </div>
     </aside>
 
@@ -37,11 +41,15 @@
     <main class="main-content">
         <header class="content-header">
             <h2>{{ folder | capitalize }}</h2>
-            <span>{{ mails | length }} messages</span>
+
+            {# Barre de recherche temps réel #}
+            <div style="position: relative;">
+                <input type="text" id="searchInput" placeholder="Rechercher..." style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 20px; font-size: 0.9rem; width: 250px; outline: none;">
+            </div>
         </header>
 
         <div class="scrollable-content">
-            <ul class="email-list">
+            <ul class="email-list" id="emailList">
                 {% if mails is empty %}
                     <li style="text-align: center; padding: 50px; color: var(--text-muted);">Ce dossier est vide.</li>
                 {% else %}
@@ -49,17 +57,79 @@
                         {# On applique le style 'unread' SEULEMENT si on est dans l'INBOX et que le message n'est pas lu #}
                         {% set isUnread = (folder == 'inbox' and not mail.isRead) %}
 
-                        <a href="/read?username={{ username }}&folder={{ folder }}&id={{ mail.id }}" class="email-item {{ isUnread ? 'unread' : '' }}">
-                            <div class="email-sender">{{ folder == 'outbox' ? 'À : ' ~ mail.to : mail.from }}</div>
-                            <div class="email-subject">{{ mail.subject | default('(Sans objet)') }}</div>
-                            <div class="email-date">{{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }}</div>
-                        </a>
+                        <li class="email-item {{ isUnread ? 'unread' : '' }}" data-search="{{ mail.subject }} {{ mail.from }} {{ mail.to }}">
+                            {# Étoile Important #}
+                            <form action="/toggle-important" method="post" style="margin: 0; margin-right: 10px;">
+                                <input type="hidden" name="folder" value="{{ folder }}">
+                                <input type="hidden" name="filename" value="{{ mail.id }}">
+                                <button type="submit" class="star-btn {{ mail.isImportant ? 'active' : '' }}" title="Marquer comme important">
+                                    {{ mail.isImportant ? '⭐' : '☆' }}
+                                </button>
+                            </form>
+
+                            <a href="/read?folder={{ folder }}&id={{ mail.id }}" class="email-link">
+                                <div class="email-sender">{{ folder == 'outbox' ? 'À : ' ~ mail.to : mail.from }}</div>
+                                <div class="email-subject">{{ mail.subject | default('(Sans objet)') }}</div>
+                                <div class="email-date">{{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }}</div>
+                            </a>
+                        </li>
                     {% endfor %}
                 {% endif %}
             </ul>
+            <div id="noResults" style="display: none; text-align: center; padding: 50px; color: var(--text-muted);">Aucun résultat trouvé.</div>
         </div>
     </main>
 </div>
+
+<script>
+    document.getElementById('searchInput').addEventListener('input', function(e) {
+        const term = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('.email-item');
+        let hasResults = false;
+
+        items.forEach(item => {
+            if (!item.dataset.originalSender) {
+                item.dataset.originalSender = item.querySelector('.email-sender').textContent;
+                item.dataset.originalSubject = item.querySelector('.email-subject').textContent;
+            }
+
+            const senderEl = item.querySelector('.email-sender');
+            const subjectEl = item.querySelector('.email-subject');
+
+            const senderText = item.dataset.originalSender;
+            const subjectText = item.dataset.originalSubject;
+
+            const textToSearch = (senderText + ' ' + subjectText).toLowerCase();
+
+            if (textToSearch.includes(term)) {
+                item.style.display = 'flex';
+                hasResults = true;
+
+                if (term.length > 0) {
+                    senderEl.innerHTML = highlightText(senderText, term);
+                    subjectEl.innerHTML = highlightText(subjectText, term);
+                } else {
+                    senderEl.textContent = senderText;
+                    subjectEl.textContent = subjectText;
+                }
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        document.getElementById('noResults').style.display = hasResults ? 'none' : 'block';
+        const emptyMsg = document.querySelector('.email-list li');
+        if(emptyMsg && emptyMsg.textContent.includes('vide')) {
+             emptyMsg.style.display = term ? 'none' : 'block';
+        }
+    });
+
+    function highlightText(text, term) {
+        if (!term) return text;
+        const regex = new RegExp('(' + term + ')', 'gi');
+        return text.replace(regex, '<strong style="background-color: #fff3cd; color: #1f2937;">$1</strong>');
+    }
+</script>
 
 </body>
 </html>
