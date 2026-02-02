@@ -27,8 +27,10 @@
         </nav>
 
         <div class="user-info">
-            Connecté en tant que :<br>
-            <strong>{{ username }}</strong>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <img src="/avatar/{{ username }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                <strong>{{ username }}</strong>
+            </div>
             <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
                 Espace utilisé : <strong>{{ userSpace }}</strong>
             </div>

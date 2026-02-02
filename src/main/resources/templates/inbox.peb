@@ -27,9 +27,11 @@
         </nav>
 
         <div class="user-info">
-            Connecté en tant que :<br>
-            <strong>{{ username }}</strong>
-            <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <img src="/avatar/{{ username }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                <strong>{{ username }}</strong>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
                 Espace utilisé : <strong>{{ userSpace }}</strong>
             </div>
             <a href="/settings" style="display: block; margin-top: 10px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">⚙️ Paramètres</a>
@@ -64,8 +66,11 @@
                             {% set linkUrl = "/read?folder=" + folder + "&id=" + mail.id %}
                         {% endif %}
 
+                        {# Déterminer qui afficher (expéditeur ou destinataire) #}
+                        {% set contactName = (folder == 'outbox' or folder == 'draft') ? mail.to : mail.from %}
+
                         <li class="email-item {{ isUnread ? 'unread' : '' }}" data-search="{{ mail.subject }} {{ mail.from }} {{ mail.to }}">
-                            {# Étoile Important (sauf pour les brouillons où ça a moins de sens, mais on peut laisser) #}
+                            {# Étoile Important #}
                             <form action="/toggle-important" method="post" style="margin: 0; margin-right: 10px;">
                                 <input type="hidden" name="folder" value="{{ folder }}">
                                 <input type="hidden" name="filename" value="{{ mail.id }}">
@@ -74,8 +79,11 @@
                                 </button>
                             </form>
 
-                            <a href="{{ linkUrl }}" class="email-link">
-                                <div class="email-sender">{{ folder == 'outbox' or folder == 'draft' ? 'À : ' ~ mail.to : mail.from }}</div>
+                            <a href="{{ linkUrl }}" class="email-link" style="display: flex; align-items: center; width: 100%;">
+                                {# Avatar #}
+                                <img src="/avatar/{{ contactName }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin-right: 15px;">
+
+                                <div class="email-sender">{{ contactName }}</div>
                                 <div class="email-subject">{{ mail.subject | default('(Sans objet)') }}</div>
                                 <div class="email-date">{{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }}</div>
                             </a>

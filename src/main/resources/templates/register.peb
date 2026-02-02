@@ -11,7 +11,8 @@
     <h2 style="color: var(--primary-color);">Vertimail</h2>
     <h3>Créez votre nouveau compte</h3>
 
-    <form action="/register" method="post" style="margin-top: 30px;">
+    {# Ajout de enctype pour l'upload #}
+    <form action="/register" method="post" enctype="multipart/form-data" style="margin-top: 30px;">
         <div class="form-group">
             <label for="username">Nom d'utilisateur</label>
             <input type="text" id="username" name="username" class="form-control" required>
@@ -30,11 +31,56 @@
             <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
         </div>
 
+        {# Champ Avatar avec Prévisualisation #}
+        <div class="form-group">
+            <label for="avatar">Photo de profil (optionnel)</label>
+
+            <div style="display: flex; align-items: center; gap: 20px; margin-top: 10px;">
+                {# Zone de prévisualisation #}
+                <div id="avatarPreview" style="width: 60px; height: 60px; border-radius: 50%; background-color: #e5e7eb; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 2px solid var(--primary-color);">
+                    <span style="font-size: 2rem; color: #9ca3af;">👤</span>
+                </div>
+
+                <div style="flex: 1;">
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="avatar" name="avatar" class="file-upload-input" accept="image/png, image/jpeg, image/jpg" onchange="previewAvatar()">
+                        <label for="avatar" class="file-upload-btn" style="width: 100%; justify-content: center;">
+                            Choisir une image
+                        </label>
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 5px;">
+                        JPG ou PNG. Max 2 Mo. Sera recadré en rond.
+                    </small>
+                </div>
+            </div>
+        </div>
+
         <button type="submit" class="btn">S'inscrire</button>
     </form>
 
     <a href="/" class="btn btn-secondary">J'ai déjà un compte</a>
 </div>
+
+<script>
+    function previewAvatar() {
+        const input = document.getElementById('avatar');
+        const preview = document.getElementById('avatarPreview');
+
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                // On remplace le contenu par l'image
+                preview.innerHTML = '<img src="' + e.target.result + '" style="width: 100%; height: 100%; object-fit: cover;">';
+            }
+
+            reader.readAsDataURL(input.files[0]);
+        } else {
+            // Reset si pas de fichier
+            preview.innerHTML = '<span style="font-size: 2rem; color: #9ca3af;">👤</span>';
+        }
+    }
+</script>
 
 </body>
 </html>

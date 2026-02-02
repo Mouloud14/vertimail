@@ -14,22 +14,24 @@
     {# --- Sidebar --- #}
     <aside class="sidebar">
         <h1 class="app-title">Vertimail</h1>
-        <a href="/compose?user={{ username }}" class="btn-compose">Nouveau Message</a>
+        <a href="/compose" class="btn-compose">Nouveau Message</a>
         <nav class="menu">
-            <a href="/box?username={{ username }}&folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
+            <a href="/box?folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
                 <span>Réception</span>
                 {% if unreadCount > 0 %}
                     <span class="unread-badge">{{ unreadCount }}</span>
                 {% endif %}
             </a>
-            <a href="/box?username={{ username }}&folder=outbox" class="nav-link {{ folder == 'outbox' ? 'active' : '' }}">Envoyés</a>
-            <a href="/box?username={{ username }}&folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
-            <a href="/box?username={{ username }}&folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
+            <a href="/box?folder=outbox" class="nav-link {{ folder == 'outbox' ? 'active' : '' }}">Envoyés</a>
+            <a href="/box?folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
+            <a href="/box?folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
         </nav>
         <div class="user-info">
-            Connecté en tant que :<br>
-            <strong>{{ username }}</strong>
-            <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <img src="/avatar/{{ username }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                <strong>{{ username }}</strong>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
                 Espace utilisé : <strong>{{ userSpace }}</strong>
             </div>
             <a href="/settings" style="display: block; margin-top: 10px; color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">⚙️ Paramètres</a>
@@ -40,7 +42,7 @@
     {# --- Contenu Principal --- #}
     <main class="main-content">
         <header class="content-header">
-            <a href="/box?username={{ username }}&folder={{ folder }}" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">&larr; Retour</a>
+            <a href="/box?folder={{ folder }}" style="text-decoration: none; color: var(--primary-color); font-weight: 500;">&larr; Retour à la liste</a>
         </header>
 
         <div class="scrollable-content">
@@ -49,9 +51,13 @@
                     <div class="email-view-header">
                         <h1 class="email-view-subject">{{ mail.subject }}</h1>
                         <div class="email-view-meta">
-                            <div>
-                                <span class="sender-name">{{ mail.from }}</span>
-                                <span class="sender-email">à {{ mail.to }}</span>
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                {# Avatar #}
+                                <img src="/avatar/{{ mail.from }}" alt="" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover;">
+                                <div>
+                                    <span class="sender-name">{{ mail.from }}</span>
+                                    <span class="sender-email">à {{ mail.to }}</span>
+                                </div>
                             </div>
                             <div class="email-date-detail">
                                 {{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }} à {{ mail.date | slice(11, 16) }}
@@ -87,11 +93,10 @@
                             {% if not mail.subject.startsWith("Re:") %}
                                 {% set newSubject = "Re: " + mail.subject %}
                             {% endif %}
-                            <a href="/compose?user={{ username }}&recipient={{ mail.from }}&subject={{ newSubject }}" class="btn-action primary">Répondre</a>
+                            <a href="/compose?recipient={{ mail.from }}&subject={{ newSubject }}" class="btn-action primary">Répondre</a>
                         {% endif %}
 
                         <form action="/delete" method="post" style="margin: 0;">
-                            <input type="hidden" name="username" value="{{ username }}">
                             <input type="hidden" name="folder" value="{{ folder }}">
                             <input type="hidden" name="filename" value="{{ id }}">
                             <button type="submit" class="btn-action danger">Supprimer</button>

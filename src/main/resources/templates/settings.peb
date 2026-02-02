@@ -27,8 +27,10 @@
         </nav>
 
         <div class="user-info">
-            Connecté en tant que :<br>
-            <strong>{{ username }}</strong>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <img src="/avatar/{{ username }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                <strong>{{ username }}</strong>
+            </div>
             <div style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">
                 Espace utilisé : <strong>{{ userSpace }}</strong>
             </div>
@@ -56,6 +58,31 @@
                     <p style="color: var(--danger-color); margin-bottom: 15px; font-weight: 500;">{{ error }}</p>
                 {% endif %}
 
+                {# --- Formulaire Avatar (Version Compacte) --- #}
+                <form action="/settings/avatar" method="post" enctype="multipart/form-data" style="margin-bottom: 30px; padding-bottom: 30px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 20px;">
+
+                    {# Partie Gauche : Image #}
+                    <div style="flex-shrink: 0;">
+                        <img id="avatar-preview" src="/avatar/{{ username }}" alt="Aperçu" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;">
+                    </div>
+
+                    {# Partie Droite : Contrôles #}
+                    <div style="flex-grow: 1;">
+                        <h3 style="margin-top: 0; margin-bottom: 10px; color: var(--text-color); font-size: 1.1rem;">Photo de profil</h3>
+
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <label for="avatar" style="cursor: pointer; background: #f3f4f6; padding: 8px 15px; border-radius: 6px; font-size: 0.9rem; color: #374151; border: 1px solid #d1d5db; transition: background 0.2s;">
+                                📷 Choisir...
+                            </label>
+                            <input type="file" id="avatar" name="avatar" accept="image/*" required style="display: none;">
+
+                            <button type="submit" class="btn" style="width: auto; margin: 0; padding: 8px 15px; font-size: 0.9rem;">Enregistrer</button>
+                        </div>
+                        <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 5px;">Format JPG ou PNG.</small>
+                    </div>
+                </form>
+
+                {# --- Formulaire Mot de passe --- #}
                 <form action="/settings/password" method="post">
                     <h3 style="margin-top: 0; color: var(--text-color);">Changer le mot de passe</h3>
 
@@ -77,12 +104,24 @@
                         <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
                     </div>
 
-                    <button type="submit" class="btn" style="width: auto;">Mettre à jour</button>
+                    <button type="submit" class="btn" style="width: auto;">Mettre à jour le mot de passe</button>
                 </form>
             </div>
         </div>
     </main>
 </div>
+
+<script>
+    const avatarInput = document.getElementById('avatar');
+    const avatarPreview = document.getElementById('avatar-preview');
+
+    avatarInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            avatarPreview.src = URL.createObjectURL(file);
+        }
+    });
+</script>
 
 </body>
 </html>
