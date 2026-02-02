@@ -421,14 +421,32 @@ public class MainVerticle extends AbstractVerticle {
         .onSuccess(v -> ctx.redirect("/box?folder=draft"));
     });
 
-    router.post("/delete").handler(ctx -> {
-      String username = ctx.session().get("user");
+    router.post("/api/delete").handler(ctx -> {
+      String username = ctx.request().getFormAttribute("username");
       String folder = ctx.request().getFormAttribute("folder");
-      String filename = ctx.request().getFormAttribute("filename");
-      String src = "storage/" + username + "/" + folder + "/" + filename;
+      String filename = ctx.request().getFormAttribute("id"); // Android envoie 'id'
 
-      if ("trash".equals(folder)) vertx.fileSystem().delete(src).onComplete(r -> ctx.redirect("/box?folder=" + folder));
-      else vertx.fileSystem().move(src, "storage/" + username + "/trash/" + filename).onComplete(r -> ctx.redirect("/box?folder=" + folder));
+      if (username == null || folder == null || filename == null) {
+        ctx.json(new JsonObject().put("status", "error").put("message", "Manquant"));
+        return;
+      }
+
+      String src = "storage/" + username + "/" + folder + "/" + filename;
+      String dest = "storage/" + username + "/trash/" + filename;
+
+      if ("trash".equals(folder)) {
+        // Suppression définitive si on est déjà dans la corbeille
+        vertx.fileSystem().delete(src).onComplete(res -> {
+          if (res.succeeded()) ctx.json(new JsonObject().put("status", "deleted"));
+          else ctx.fail(500);
+        });
+      } else {
+        // Déplacement vers la corbeille
+        vertx.fileSystem().move(src, dest).onComplete(res -> {
+          if (res.succeeded()) ctx.json(new JsonObject().put("status", "moved_to_trash"));
+          else ctx.fail(500);
+        });
+      }
     });
 
     router.get("/read").handler(ctx -> {
@@ -500,7 +518,53 @@ public class MainVerticle extends AbstractVerticle {
       }).onFailure(e -> ctx.json(new JsonObject().put("status", "error")));
     });
 
+// --- API MOBILE : RÉCUPÉRER LA LISTE DES MAILS (INBOX, OUTBOX, TRASH) ---
+    router.get("/api/mails").handler(ctx -> {
+      String username = ctx.request().getParam("username");
+      String folder = ctx.request().getParam("folder"); // inbox, outbox, trash
 
+      if (username == null || folder == null) {
+        ctx.json(new JsonObject().put("status", "error").put("message", "Paramètres manquants"));
+        return;
+      }
+
+      String path = "storage/" + username + "/" + folder;
+
+      vertx.fileSystem().exists(path).onSuccess(exists -> {
+        if (!exists) {
+          ctx.json(new JsonObject().put("mails", new JsonArray()));
+          return;
+        }
+
+        vertx.fileSystem().readDir(path).onSuccess(files -> {
+          List<Future<JsonObject>> futures = new ArrayList<>();
+
+          for (String filePath : files) {
+            if (filePath.endsWith(".json")) {
+              futures.add(vertx.fileSystem().readFile(filePath).map(buffer -> {
+                JsonObject mailJson = new JsonObject(buffer);
+                mailJson.put("id", new File(filePath).getName());
+
+                // OPTIONNEL : On peut aussi essayer d'inclure le base64 de l'avatar de l'expéditeur ici
+                // pour éviter que le mobile fasse 50 requêtes, mais restons simple pour l'instant.
+                return mailJson;
+              }));
+            }
+          }
+
+          Future.all(futures).onSuccess(res -> {
+            JsonArray mailsArray = new JsonArray();
+            for (int i = 0; i < res.size(); i++) {
+              mailsArray.add(res.<JsonObject>resultAt(i));
+            }
+
+            // On renvoie l'objet attendu par ton DashboardActivity
+            ctx.json(new JsonObject().put("mails", mailsArray));
+          }).onFailure(err -> ctx.fail(500));
+
+        }).onFailure(err -> ctx.json(new JsonObject().put("mails", new JsonArray())));
+      }).onFailure(err -> ctx.fail(500));
+    });
 
     router.get("/api/storage-info").handler(ctx -> {
       calculateUserSpace(ctx.request().getParam("username")).onSuccess(s ->
