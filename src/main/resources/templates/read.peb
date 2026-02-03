@@ -65,7 +65,7 @@
                         </div>
                     </div>
 
-                    <div class="email-view-body">
+                    <div class="email-view-body" style="white-space: pre-wrap; line-height: 1.6;">
                         {{ mail.content }}
                     </div>
 
@@ -79,7 +79,10 @@
                                         <span style="font-size: 1.2rem;">📎</span>
                                         <div>
                                             <div style="font-weight: 500; font-size: 0.9rem;">{{ att.name }}</div>
-                                            <div style="font-size: 0.8rem; color: var(--text-muted);">{{ att.size }} octets</div>
+                                            <div style="font-size: 0.8rem; color: var(--text-muted);">
+                                                {# Affichage forcé en Mo avec 2 décimales #}
+                                                {{ (att.size / 1048576) | numberformat("#.##") }} Mo
+                                            </div>
                                         </div>
                                     </a>
                                 {% endfor %}
@@ -87,26 +90,54 @@
                         </div>
                     {% endif %}
 
-                    <div class="mail-actions">
+                    <div class="mail-actions" style="display: flex; gap: 10px; margin-top: 30px;">
                         {% if folder != 'draft' and folder != 'trash' %}
                             {% set newSubject = mail.subject %}
-                            {% if not mail.subject.startsWith("Re:") %}
+                            {# Astuce pour éviter startsWith si non supporté : on vérifie les 3 premiers caractères #}
+                            {% if mail.subject | length >= 3 and mail.subject | slice(0, 3) != "Re:" %}
                                 {% set newSubject = "Re: " + mail.subject %}
                             {% endif %}
-                            <a href="/compose?recipient={{ mail.from }}&subject={{ newSubject }}" class="btn-action primary">Répondre</a>
+                            <a href="/compose?recipient={{ mail.from }}&subject={{ newSubject }}" class="btn-action primary" style="text-decoration: none; padding: 10px 20px; background: var(--primary-color); color: white; border-radius: 6px;">Répondre</a>
                         {% endif %}
 
-                        <form action="/delete" method="post" style="margin: 0;">
-                            <input type="hidden" name="folder" value="{{ folder }}">
-                            <input type="hidden" name="filename" value="{{ id }}">
-                            <button type="submit" class="btn-action danger">Supprimer</button>
-                        </form>
+                        {# BOUTON SUPPRIMER (AJAX) #}
+                        <button onclick="deleteMail('{{ id }}', '{{ folder }}')" class="btn-action danger" style="padding: 10px 20px; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                            Supprimer
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </main>
 </div>
+
+<script>
+    function deleteMail(id, folder) {
+        if (!confirm('Voulez-vous vraiment supprimer ce message ?')) return;
+
+        const formData = new FormData();
+        formData.append('username', '{{ username }}');
+        formData.append('folder', folder);
+        formData.append('id', id);
+
+        fetch('/api/delete', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok' || data.status === 'deleted' || data.status === 'moved_to_trash') {
+                window.location.href = '/box?folder=' + folder; // Retour à la liste
+            } else {
+                alert('Erreur lors de la suppression: ' + (data.message || 'Inconnue'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Erreur réseau');
+        });
+    }
+</script>
 
 </body>
 </html>

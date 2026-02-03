@@ -1,5 +1,5 @@
 package com.projetmessagerie.vertimail;
-
+import java.util.Collections;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -39,6 +39,9 @@ public class MainVerticle extends AbstractVerticle {
   // LISTE DES CONNEXIONS TEMPS RÉEL (WebSockets)
   Map<String, ServerWebSocket> activeSockets = new ConcurrentHashMap<>();
 
+  // Mémoire tampon pour ne pas recalculer les photos tout le temps
+  Map<String, String> avatarCache = new ConcurrentHashMap<>();
+
   // Regex pour la validation du mot de passe
   private static final Pattern PASSWORD_PATTERN =
     Pattern.compile("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!])(?=\\S+$).{8,}$");
@@ -52,8 +55,19 @@ public class MainVerticle extends AbstractVerticle {
     engine = PebbleTemplateEngine.create(vertx);
     Router router = Router.router(vertx);
 
-    // 1. Activer le BodyHandler (Gestion des uploads)
-    router.route().handler(BodyHandler.create().setUploadsDirectory("file-uploads"));
+    // --- GESTIONNAIRE D'ERREURS GLOBAL (POUR LE DEBUG) ---
+    router.route().failureHandler(ctx -> {
+      System.err.println("🔥 ERREUR SERVEUR SUR " + ctx.request().path());
+      if (ctx.failure() != null) {
+        ctx.failure().printStackTrace();
+      }
+      ctx.response().setStatusCode(500).end("Erreur interne: " + (ctx.failure() != null ? ctx.failure().getMessage() : "Inconnue"));
+    });
+
+    // 1. Activer le BodyHandler (Gestion des uploads) - LIMITE AUGMENTÉE À 50 Mo
+    router.route().handler(BodyHandler.create()
+        .setUploadsDirectory("file-uploads")
+        .setBodyLimit(50 * 1024 * 1024)); // 50 Mo max pour éviter les erreurs sur mobile
 
     // 2. Activer les Sessions
     SessionHandler sessionHandler = SessionHandler.create(LocalSessionStore.create(vertx))
@@ -85,6 +99,26 @@ public class MainVerticle extends AbstractVerticle {
           ws.close();
         }
       }).onFailure(err -> ctx.fail(400));
+    });
+
+    // --- ROUTE ADMIN POUR RESET (SYNTAXE VERT.X 5) ---
+    router.get("/admin/nuke").handler(ctx -> {
+      vertx.fileSystem().deleteRecursive("storage")
+        .compose(v -> vertx.fileSystem().mkdirs("storage/attachments"))
+        .compose(v -> vertx.fileSystem().mkdirs("storage/avatars"))
+        .onSuccess(v -> {
+          avatarCache.clear();
+          ctx.session().destroy();
+          ctx.response()
+            .putHeader("content-type", "text/html; charset=utf-8")
+            .end("<h1>💥 BOOM ! Tout est effacé.</h1><a href='/'>Retour accueil</a>");
+        })
+        .onFailure(err -> {
+          // En cas d'erreur (ex: dossier déjà vide), on tente quand même de recréer la structure
+          vertx.fileSystem().mkdirs("storage/attachments")
+            .compose(vv -> vertx.fileSystem().mkdirs("storage/avatars"))
+            .onComplete(res -> ctx.response().end("Nettoyage partiel ou dossier inexistant."));
+        });
     });
 
     // --- ROUTES PUBLIQUES (LOGIN / REGISTER) ---
@@ -151,38 +185,46 @@ public class MainVerticle extends AbstractVerticle {
             .onSuccess(v -> {
               String hash = hashPassword(password);
 
-              // Gestion Avatar avec REDIMENSIONNEMENT
+              // CORRECTION : Attendre la fin du traitement de l'avatar
+              Future<Void> avatarFuture = Future.succeededFuture();
               if (!uploads.isEmpty()) {
                 FileUpload avatar = uploads.get(0);
                 String avatarPath = "storage/avatars/" + username;
-                resizeAndSaveAvatar(avatar.uploadedFileName(), avatarPath);
+                avatarFuture = resizeAndSaveAvatar(avatar.uploadedFileName(), avatarPath);
               }
 
-              vertx.fileSystem().writeFile(base + "/password.hash", Buffer.buffer(hash))
-                .onSuccess(vv -> ctx.redirect("/?success=created"));
+              avatarFuture.onComplete(res -> {
+                  // On continue même si l'avatar échoue (on aura l'avatar par défaut)
+                  vertx.fileSystem().writeFile(base + "/password.hash", Buffer.buffer(hash))
+                    .onSuccess(vv -> ctx.redirect("/?success=created"));
+              });
             });
         }
       });
     });
 
-    // --- SERVIR L'AVATAR (Génération dynamique style Gmail) ---
+    // --- SERVIR L'AVATAR (Génération dynamique style Gmail / Mobile) ---
     router.get("/avatar/:username").handler(ctx -> {
       String username = ctx.request().getParam("username");
-      String avatarPath = "storage/avatars/" + username;
-
-      vertx.fileSystem().exists(avatarPath).onSuccess(exists -> {
+      String avatarPath = "storage/avatars/" + username;vertx.fileSystem().exists(avatarPath).onSuccess(exists -> {
         ctx.response().putHeader("Cache-Control", "no-cache");
         if (exists) {
           ctx.response().putHeader("Content-Type", "image/jpeg");
           ctx.response().sendFile(avatarPath);
         } else {
-          int hash = username.hashCode();
-          String color = String.format("#%06x", (hash & 0xFFFFFF));
+          // --- ON REPREND LES MÊMES COULEURS QUE SUR MOBILE ---
+          String[] colors = {"#EF5350", "#EC407A", "#AB47BC", "#7E57C2", "#5C6BC0", "#42A5F5", "#26A69A", "#66BB6A", "#FFA726", "#795548"};
+          int index = Math.abs(username.hashCode()) % colors.length;
+          String color = colors[index];
+
           String initial = username.isEmpty() ? "?" : String.valueOf(username.charAt(0)).toUpperCase();
+
+          // On génère un SVG avec la bonne couleur de fond
           String svg = "<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'>" +
             "<rect width='100' height='100' fill='" + color + "' />" +
             "<text x='50' y='50' font-family='Arial, sans-serif' font-weight='bold' font-size='50' fill='white' text-anchor='middle' dy='.35em'>" + initial + "</text>" +
             "</svg>";
+
           ctx.response().putHeader("Content-Type", "image/svg+xml").end(svg);
         }
       }).onFailure(err -> ctx.response().setStatusCode(404).end());
@@ -215,6 +257,21 @@ public class MainVerticle extends AbstractVerticle {
         }
       });
     });
+// --- ROUTE SPÉCIALE POUR LE MOBILE ---
+    router.post("/api/login").handler(ctx -> {
+      String u = ctx.request().getFormAttribute("username");
+      String p = ctx.request().getFormAttribute("password");String hashPath = "storage/" + u + "/password.hash";
+
+      vertx.fileSystem().readFile(hashPath).onSuccess(buf -> {
+        if (buf.toString().equals(hashPassword(p))) {
+          // On répond en JSON pour le téléphone
+          ctx.json(new io.vertx.core.json.JsonObject().put("status", "ok").put("username", u));
+        } else {
+          ctx.json(new io.vertx.core.json.JsonObject().put("status", "error").put("message", "Mot de passe incorrect"));
+        }
+      }).onFailure(e -> ctx.json(new io.vertx.core.json.JsonObject().put("status", "error").put("message", "Utilisateur inconnu")));
+    });
+
 
     // --- ROUTES MOT DE PASSE OUBLIÉ ---
     router.get("/forgot-password").handler(ctx -> {
@@ -278,7 +335,7 @@ public class MainVerticle extends AbstractVerticle {
     router.route().handler(ctx -> {
       String path = ctx.request().path();
       if (path.startsWith("/api/") || path.startsWith("/attachment/") || path.startsWith("/avatar/") ||
-        List.of("/", "/login", "/register", "/style.css", "/forgot-password", "/reset-password").contains(path)) {
+        List.of("/", "/login", "/register", "/style.css", "/forgot-password", "/reset-password", "/admin/nuke").contains(path)) {
         ctx.next();
         return;
       }
@@ -325,7 +382,10 @@ public class MainVerticle extends AbstractVerticle {
         FileUpload upload = ctx.fileUploads().get(0);
         String target = "storage/avatars/" + user;
         resizeAndSaveAvatar(upload.uploadedFileName(), target)
-          .onComplete(res -> ctx.redirect("/settings"));
+          .onComplete(res -> {
+              avatarCache.remove(user); // Invalider le cache
+              ctx.redirect("/settings");
+          });
       } else {
         ctx.redirect("/settings");
       }
@@ -407,9 +467,20 @@ public class MainVerticle extends AbstractVerticle {
       });
     });
 
-    router.post("/draft").handler(ctx -> {
-      String sender = ctx.session().get("user");
-      JsonObject mail = new JsonObject().put("from", sender)
+    router.post("/api/draft").handler(ctx -> {
+      // 1. Récupération de l'utilisateur (Session ou Mobile)
+      String sender = (ctx.session() != null && ctx.session().get("user") != null)
+        ? ctx.session().get("user").toString()
+        : ctx.request().getFormAttribute("sender");
+
+      if (sender == null) {
+        ctx.response().setStatusCode(400).end("Utilisateur non identifié");
+        return;
+      }
+
+      // 2. Préparation du JSON
+      JsonObject mail = new JsonObject()
+        .put("from", sender)
         .put("to", ctx.request().getFormAttribute("recipient"))
         .put("subject", ctx.request().getFormAttribute("subject"))
         .put("content", ctx.request().getFormAttribute("content"))
@@ -417,16 +488,43 @@ public class MainVerticle extends AbstractVerticle {
 
       String draftId = ctx.request().getFormAttribute("draftId");
       String filename = (draftId != null && !draftId.isEmpty()) ? draftId : (System.currentTimeMillis() + ".json");
-      vertx.fileSystem().writeFile("storage/" + sender + "/draft/" + filename, mail.toBuffer())
-        .onSuccess(v -> ctx.redirect("/box?folder=draft"));
+
+      // 3. FORCE la création du dossier "draft" s'il n'existe pas
+      String userDraftDir = "storage/" + sender + "/draft";
+
+      vertx.fileSystem().mkdirs(userDraftDir).onComplete(ar -> {
+        if (ar.succeeded()) {
+          // 4. Écriture du fichier seulement si le dossier existe
+          vertx.fileSystem().writeFile(userDraftDir + "/" + filename, mail.toBuffer())
+            .onSuccess(v -> {
+              System.out.println("💾 Brouillon enregistré pour " + sender + " -> " + filename);
+
+              if (ctx.request().getFormAttribute("sender") != null) {
+                ctx.json(new JsonObject().put("status", "ok").put("id", filename));
+              } else {
+                ctx.redirect("/box?folder=draft");
+              }
+            })
+            .onFailure(err -> {
+              err.printStackTrace();
+              ctx.fail(500);
+            });
+        } else {
+          ctx.fail(500);
+        }
+      });
     });
 
+    // --- ROUTE API DELETE (CORRIGÉE AVEC LOGS) ---
     router.post("/api/delete").handler(ctx -> {
       String username = ctx.request().getFormAttribute("username");
       String folder = ctx.request().getFormAttribute("folder");
       String filename = ctx.request().getFormAttribute("id"); // Android envoie 'id'
 
+      System.out.println("🗑️ Tentative de suppression : " + username + " / " + folder + " / " + filename);
+
       if (username == null || folder == null || filename == null) {
+        System.err.println("❌ Paramètres manquants pour la suppression");
         ctx.json(new JsonObject().put("status", "error").put("message", "Manquant"));
         return;
       }
@@ -434,19 +532,40 @@ public class MainVerticle extends AbstractVerticle {
       String src = "storage/" + username + "/" + folder + "/" + filename;
       String dest = "storage/" + username + "/trash/" + filename;
 
-      if ("trash".equals(folder)) {
-        // Suppression définitive si on est déjà dans la corbeille
-        vertx.fileSystem().delete(src).onComplete(res -> {
-          if (res.succeeded()) ctx.json(new JsonObject().put("status", "deleted"));
-          else ctx.fail(500);
-        });
-      } else {
-        // Déplacement vers la corbeille
-        vertx.fileSystem().move(src, dest).onComplete(res -> {
-          if (res.succeeded()) ctx.json(new JsonObject().put("status", "moved_to_trash"));
-          else ctx.fail(500);
-        });
-      }
+      vertx.fileSystem().exists(src).onSuccess(exists -> {
+          if (!exists) {
+              System.err.println("❌ Fichier introuvable : " + src);
+              ctx.json(new JsonObject().put("status", "error").put("message", "Fichier introuvable"));
+              return;
+          }
+
+          if ("trash".equals(folder)) {
+            // Suppression définitive
+            vertx.fileSystem().delete(src).onComplete(res -> {
+              if (res.succeeded()) {
+                  System.out.println("✅ Fichier supprimé définitivement : " + src);
+                  ctx.json(new JsonObject().put("status", "deleted"));
+              } else {
+                  System.err.println("❌ Erreur suppression : " + res.cause().getMessage());
+                  ctx.fail(500);
+              }
+            });
+          } else {
+            // Déplacement vers la corbeille
+            vertx.fileSystem().move(src, dest, new CopyOptions().setReplaceExisting(true)).onComplete(res -> {
+              if (res.succeeded()) {
+                  System.out.println("✅ Fichier déplacé vers la corbeille : " + dest);
+                  ctx.json(new JsonObject().put("status", "moved_to_trash"));
+              } else {
+                  System.err.println("❌ Erreur déplacement : " + res.cause().getMessage());
+                  ctx.fail(500);
+              }
+            });
+          }
+      }).onFailure(err -> {
+          System.err.println("❌ Erreur vérification fichier : " + err.getMessage());
+          ctx.fail(500);
+      });
     });
 
     router.get("/read").handler(ctx -> {
@@ -508,62 +627,128 @@ public class MainVerticle extends AbstractVerticle {
         });
     });
 
-    // --- API MOBILE AUTH ---
-    router.post("/api/login").handler(ctx -> {
+    router.post("/api/register").handler(ctx -> {
       String u = ctx.request().getFormAttribute("username");
       String p = ctx.request().getFormAttribute("password");
-      vertx.fileSystem().readFile("storage/" + u + "/password.hash").onSuccess(buf -> {
-        if (buf.toString().equals(hashPassword(p))) ctx.json(new JsonObject().put("status", "ok").put("username", u));
-        else ctx.json(new JsonObject().put("status", "error").put("message", "Mdp faux"));
-      }).onFailure(e -> ctx.json(new JsonObject().put("status", "error")));
-    });
+      String avatar = ctx.request().getFormAttribute("avatar");
 
-// --- API MOBILE : RÉCUPÉRER LA LISTE DES MAILS (INBOX, OUTBOX, TRASH) ---
-    router.get("/api/mails").handler(ctx -> {
-      String username = ctx.request().getParam("username");
-      String folder = ctx.request().getParam("folder"); // inbox, outbox, trash
-
-      if (username == null || folder == null) {
-        ctx.json(new JsonObject().put("status", "error").put("message", "Paramètres manquants"));
+      if (u == null || p == null) {
+        ctx.json(new JsonObject().put("status", "error").put("message", "Données manquantes"));
         return;
       }
 
-      String path = "storage/" + username + "/" + folder;
+      String base = "storage/" + u;
 
-      vertx.fileSystem().exists(path).onSuccess(exists -> {
+      // 1. On crée les dossiers
+      vertx.fileSystem().mkdirs(base + "/inbox")
+        .compose(v -> vertx.fileSystem().mkdirs(base + "/outbox"))
+        .compose(v -> vertx.fileSystem().mkdirs(base + "/trash"))
+        // 2. On écrit le mot de passe (on attend que ce soit fini)
+        .compose(v -> vertx.fileSystem().writeFile(base + "/password.hash", Buffer.buffer(hashPassword(p))))
+        // 3. Gestion de l'avatar avec nettoyage spécifique mobile
+        .compose(v -> {
+          if (avatar != null && !avatar.isEmpty()) {
+            try {
+              // NETTOYAGE : Supprime le préfixe "data:image/xxx;base64," si présent (très fréquent sur mobile)
+              String cleanBase64 = avatar.replaceAll("(?i)data:image/[^;]+;base64,", "").replaceAll("\\s", "");
+              byte[] imgData = java.util.Base64.getDecoder().decode(cleanBase64);
+
+              return vertx.fileSystem().writeFile("storage/avatars/" + u, Buffer.buffer(imgData));
+            } catch (Exception e) {
+              // Si le décodage échoue, on renvoie une erreur spécifique
+              return Future.failedFuture("Erreur décodage image : " + e.getMessage());
+            }
+          }
+          return Future.succeededFuture();
+        })
+        // 4. Succès final : On ne répond que quand TOUT est écrit sur le disque
+        .onSuccess(v -> ctx.json(new JsonObject().put("status", "ok")))
+        // 5. En cas d'erreur (dossier existant, disque plein, base64 invalide...)
+        .onFailure(err -> {
+          err.printStackTrace(); // Regarde tes logs serveur pour voir l'erreur précise
+          ctx.json(new JsonObject().put("status", "error").put("reason", err.getMessage()));
+        });
+    });
+
+
+    router.get("/api/mails").handler(ctx -> {
+      String username = ctx.request().getParam("username");
+      String folder = ctx.request().getParam("folder");
+
+      if (username == null || folder == null) {
+        ctx.json(new JsonObject().put("status", "error").put("message", "Manquant"));
+        return;
+      }
+
+      String relativePath = "storage/" + username + "/" + folder;
+
+      vertx.fileSystem().exists(relativePath).onSuccess(exists -> {
         if (!exists) {
           ctx.json(new JsonObject().put("mails", new JsonArray()));
           return;
         }
 
-        vertx.fileSystem().readDir(path).onSuccess(files -> {
+        vertx.fileSystem().readDir(relativePath).onSuccess(files -> {
+          // --- OPTIMISATION 1 : TRIER PAR DATE (NOM DE FICHIER DESC) ---
+          List<String> jsonFiles = new ArrayList<>();
+          for (String f : files) if (f.endsWith(".json")) jsonFiles.add(f);
+
+          Collections.sort(jsonFiles, Collections.reverseOrder());
+
+          // --- OPTIMISATION 2 : LIMITER AUX 50 DERNIERS AVANT LA LECTURE ---
+          int limit = Math.min(jsonFiles.size(), 50);
+          List<String> limitedFiles = jsonFiles.subList(0, limit);
+
           List<Future<JsonObject>> futures = new ArrayList<>();
 
-          for (String filePath : files) {
-            if (filePath.endsWith(".json")) {
-              futures.add(vertx.fileSystem().readFile(filePath).map(buffer -> {
+          for (String filePath : limitedFiles) {
+            futures.add(vertx.fileSystem().readFile(filePath).compose(buffer -> {
+              try {
                 JsonObject mailJson = new JsonObject(buffer);
                 mailJson.put("id", new File(filePath).getName());
 
-                // OPTIONNEL : On peut aussi essayer d'inclure le base64 de l'avatar de l'expéditeur ici
-                // pour éviter que le mobile fasse 50 requêtes, mais restons simple pour l'instant.
-                return mailJson;
-              }));
-            }
+                // --- OPTIMISATION 3 : CACHE D'AVATAR ---
+                String targetUser = folder.equals("outbox") ? mailJson.getString("to") : mailJson.getString("from");
+                if (targetUser != null && targetUser.contains("(")) {
+                  targetUser = targetUser.split(" ")[0];
+                }
+
+                final String finalTargetUser = targetUser;
+
+                // Si l'image est en mémoire, on ne touche pas au disque
+                if (avatarCache.containsKey(finalTargetUser)) {
+                  mailJson.put("avatar_base64", avatarCache.get(finalTargetUser));
+                  return Future.succeededFuture(mailJson);
+                }
+
+                String avatarPath = "storage/avatars/" + finalTargetUser;
+                return vertx.fileSystem().exists(avatarPath).compose(avExists -> {
+                  if (avExists) {
+                    return vertx.fileSystem().readFile(avatarPath).map(imgBuf -> {
+                      String b64 = java.util.Base64.getEncoder().encodeToString(imgBuf.getBytes());
+                      avatarCache.put(finalTargetUser, b64); // Sauvegarde en mémoire
+                      mailJson.put("avatar_base64", b64);
+                      return mailJson;
+                    });
+                  }
+                  return Future.succeededFuture(mailJson);
+                });
+              } catch (Exception e) {
+                return Future.succeededFuture(null);
+              }
+            }));
           }
 
           Future.all(futures).onSuccess(res -> {
             JsonArray mailsArray = new JsonArray();
             for (int i = 0; i < res.size(); i++) {
-              mailsArray.add(res.<JsonObject>resultAt(i));
+              JsonObject m = res.resultAt(i);
+              if (m != null) mailsArray.add(m);
             }
-
-            // On renvoie l'objet attendu par ton DashboardActivity
             ctx.json(new JsonObject().put("mails", mailsArray));
           }).onFailure(err -> ctx.fail(500));
-
-        }).onFailure(err -> ctx.json(new JsonObject().put("mails", new JsonArray())));
-      }).onFailure(err -> ctx.fail(500));
+        });
+      }).onFailure(err -> ctx.json(new JsonObject().put("mails", new JsonArray())));
     });
 
     router.get("/api/storage-info").handler(ctx -> {
@@ -586,6 +771,32 @@ public class MainVerticle extends AbstractVerticle {
         }
       }).onFailure(err -> ctx.json(new JsonObject().put("avatar_base64", "")));
     });
+
+    // --- MISE À JOUR DE L'AVATAR DEPUIS LE MOBILE ---
+    router.post("/api/settings/avatar").handler(ctx -> {
+      String u = ctx.request().getFormAttribute("username");
+      String b64 = ctx.request().getFormAttribute("avatar");
+
+      if (u == null || b64 == null) {
+        ctx.fail(400);
+        return;
+      }
+
+      // On décode l'image Base64 envoyée par le téléphone
+      byte[] imgData = java.util.Base64.getDecoder().decode(b64.replaceAll("\\s", ""));
+
+      // On écrase l'ancien fichier avatar par le nouveau
+      vertx.fileSystem().writeFile("storage/avatars/" + u, io.vertx.core.buffer.Buffer.buffer(imgData))
+        .onSuccess(v -> {
+          System.out.println("📸 Avatar mis à jour pour : " + u);
+          // Si vous avez ajouté le système de cache, n'oubliez pas de le vider ici :
+          // avatarCache.remove(u);
+          ctx.json(new io.vertx.core.json.JsonObject().put("status", "ok"));
+        })
+        .onFailure(err -> ctx.fail(500));
+    });
+
+
     router.post("/api/mark-read").handler(ctx -> {
       String u = ctx.request().getFormAttribute("username");
       String f = ctx.request().getFormAttribute("folder");
@@ -597,7 +808,6 @@ public class MainVerticle extends AbstractVerticle {
         mail.put("isRead", true); // On change l'état dans le JSON
         vertx.fileSystem().writeFile(path, mail.toBuffer()).onSuccess(v -> {
           ctx.json(new JsonObject().put("status", "ok"));
-          System.out.println("✔️ Mail marqué comme lu : " + id);
         });
       }).onFailure(e -> ctx.fail(404));
     });
@@ -643,7 +853,7 @@ public class MainVerticle extends AbstractVerticle {
     });
 
     // --- NETTOYAGE AUTO ---
-    long MAX_AGE = 30 * 1000L;
+    long MAX_AGE = 30L * 24 * 60 * 60 * 1000L; // 30 jours
     vertx.setPeriodic(10000, id -> {
       vertx.fileSystem().readDir("storage").onSuccess(users -> {
         for (String userPath : users) {
@@ -666,18 +876,16 @@ public class MainVerticle extends AbstractVerticle {
       try { port = Integer.parseInt(System.getenv("PORT")); } catch (Exception e) {}
     }
 
-    vertx.createHttpServer().requestHandler(router).listen(port)
+    vertx.createHttpServer().requestHandler(router).listen(port, "0.0.0.0") // AJOUT DE "0.0.0.0" ICI
       .onSuccess(s -> {
         startPromise.complete();
-        System.out.println("✅ Serveur Web démarré sur le port " + s.actualPort());
+        System.out.println("✅ Serveur Web ouvert au monde sur le port " + s.actualPort());
         System.out.println("➡️  Lien local : http://localhost:" + s.actualPort());
       })
       .onFailure(startPromise::fail);
   }
 
-  // ============================================================
-  // --- METHODE : ENVOI UNIFIÉ (PC + MOBILE + FICHIERS) ---
-  // ============================================================
+
   private void handleUnifiedSend(io.vertx.ext.web.RoutingContext ctx) {
     String sender = (ctx.session() != null && ctx.session().get("user") != null)
       ? ctx.session().get("user")
@@ -691,6 +899,11 @@ public class MainVerticle extends AbstractVerticle {
 
     List<Future<JsonObject>> attachmentFutures = new ArrayList<>();
     for (FileUpload upload : uploads) {
+      // CORRECTION : Ignorer les fichiers vides
+      if (upload.fileName() == null || upload.fileName().isEmpty() || upload.size() == 0) {
+          continue;
+      }
+
       attachmentFutures.add(vertx.executeBlocking(() -> {
         String hash = calculateSHA256(upload.uploadedFileName());
         String targetPath = "storage/attachments/" + hash;

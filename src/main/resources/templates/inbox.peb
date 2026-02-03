@@ -1,3 +1,9 @@
+{# @pebvariable name="folder" type="java.lang.String" #}
+{# @pebvariable name="username" type="java.lang.String" #}
+{# @pebvariable name="unreadCount" type="java.lang.Integer" #}
+{# @pebvariable name="userSpace" type="java.lang.String" #}
+{# @pebvariable name="mails" type="java.util.List<io.vertx.core.json.JsonObject>" #}
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -8,12 +14,10 @@
 <body>
 
 <div class="app-container">
-    {# --- Sidebar (Menu de gauche) --- #}
+    {# --- Sidebar --- #}
     <aside class="sidebar">
         <h1 class="app-title">Vertimail</h1>
-
         <a href="/compose" class="btn-compose">Nouveau Message</a>
-
         <nav class="menu">
             <a href="/box?folder=inbox" class="nav-link {{ folder == 'inbox' ? 'active' : '' }}">
                 <span>Réception</span>
@@ -25,7 +29,6 @@
             <a href="/box?folder=draft" class="nav-link {{ folder == 'draft' ? 'active' : '' }}">Brouillons</a>
             <a href="/box?folder=trash" class="nav-link {{ folder == 'trash' ? 'active' : '' }}">Corbeille</a>
         </nav>
-
         <div class="user-info">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                 <img src="/avatar/{{ username }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
@@ -39,14 +42,12 @@
         </div>
     </aside>
 
-    {# --- Contenu Principal (Liste des emails) --- #}
+    {# --- Contenu Principal --- #}
     <main class="main-content">
         <header class="content-header">
             <h2>{{ folder | capitalize }}</h2>
-
-            {# Barre de recherche temps réel #}
             <div style="position: relative;">
-                <input type="text" id="searchInput" placeholder="Rechercher..." style="padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 20px; font-size: 0.9rem; width: 250px; outline: none;">
+                <input type="text" id="searchInput" placeholder="Rechercher..." style="padding: 10px 16px; border: 1px solid #e5e7eb; border-radius: 20px; font-size: 0.9rem; width: 300px; outline: none; background-color: #f9fafb;">
             </div>
         </header>
 
@@ -55,41 +56,55 @@
                 {% if mails is empty %}
                     <li style="text-align: center; padding: 50px; color: var(--text-muted);">Ce dossier est vide.</li>
                 {% else %}
-                    {% for mail in mails %}
-                        {# On applique le style 'unread' SEULEMENT si on est dans l'INBOX et que le message n'est pas lu #}
-                        {% set isUnread = (folder == 'inbox' and not mail.isRead) %}
+    {% for mail in mails %}
+        {% set isUnread = (folder == 'inbox' and not mail['isRead']) %}
+        {% set isImportant = mail['isImportant'] %}
+        {% set linkUrl = (folder == 'draft') ? "/compose?draftId=" + mail['id'] : "/read?folder=" + folder + "&id=" + mail['id'] %}
+        {% set contactName = (folder == 'outbox' or folder == 'draft') ? mail['to'] : mail['from'] %}
 
-                        {# LOGIQUE BROUILLON : Si c'est un brouillon, on va vers /compose, sinon vers /read #}
-                        {% if folder == 'draft' %}
-                            {% set linkUrl = "/compose?draftId=" + mail.id %}
-                        {% else %}
-                            {% set linkUrl = "/read?folder=" + folder + "&id=" + mail.id %}
-                        {% endif %}
+                        <li class="email-item {{ isUnread ? 'unread' : '' }}" data-search="{{ mail['subject'] }} {{ mail['from'] }} {{ mail['to'] }}">
 
-                        {# Déterminer qui afficher (expéditeur ou destinataire) #}
-                        {% set contactName = (folder == 'outbox' or folder == 'draft') ? mail.to : mail.from %}
-
-                        <li class="email-item {{ isUnread ? 'unread' : '' }}" data-search="{{ mail.subject }} {{ mail.from }} {{ mail.to }}">
-                            {# Étoile Important #}
-                            <form action="/toggle-important" method="post" style="margin: 0; margin-right: 10px;">
-                                <input type="hidden" name="folder" value="{{ folder }}">
-                                <input type="hidden" name="filename" value="{{ mail.id }}">
-                                <button type="submit" class="star-btn {{ mail.isImportant ? 'active' : '' }}" title="Marquer comme important">
-                                    {{ mail.isImportant ? '⭐' : '☆' }}
-                                </button>
-                            </form>
-
-                            <a href="{{ linkUrl }}" class="email-link" style="display: flex; align-items: center; width: 100%;">
-                                {# Avatar #}
-                                <img src="/avatar/{{ contactName }}" alt="" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; margin-right: 15px;">
+                            {# Lien principal #}
+                            <a href="{{ linkUrl }}" class="email-link">
+                                <img src="/avatar/{{ contactName }}" alt="" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; margin-right: 16px; border: 1px solid #e5e7eb;">
 
                                 <div class="email-sender">{{ contactName }}</div>
-                                <div class="email-subject">{{ mail.subject | default('(Sans objet)') }}</div>
-                                <div class="email-date">{{ mail.date | slice(8, 10) }}/{{ mail.date | slice(5, 7) }}/{{ mail.date | slice(0, 4) }}</div>
+
+                                <div class="email-subject">
+                                    {% if mail['isImportant'] %} <span style="color: #f59e0b; margin-right: 5px;">⭐</span> {% endif %}
+                                    {{ mail['subject'] | default('(Sans objet)') }}
+                                </div>
+
+                                <div class="email-date" style="width: 140px;"> {# Largeur augmentée pour l'heure #}
+                                    {{ mail['date'] | slice(8, 10) }}/{{ mail['date'] | slice(5, 7) }} à {{ mail['date'] | slice(11, 16) }}
+                                </div>
                             </a>
+
+                            {# --- Menu Contextuel (Masqué dans la corbeille) --- #}
+                            {% if folder != 'trash' %}
+                            <div class="dropdown">
+                                <button class="dropbtn" aria-label="Options">⋮</button>
+                                <div class="dropdown-content">
+                                    <form action="/toggle-important" method="post">
+                                        <input type="hidden" name="folder" value="{{ folder }}">
+                                        <input type="hidden" name="filename" value="{{ mail['id'] }}">
+                                        <button type="submit">
+                                            {{ mail['isImportant'] ? 'Retirer des favoris' : 'Marquer comme important' }}
+                                        </button>
+                                    </form>
+
+                                    <button onclick="deleteMail('{{ mail['id'] }}', '{{ folder }}')" class="danger-action">
+                                        Supprimer
+                                    </button>
+                                </div>
+                            </div>
+                            {% else %}
+                                {# Optionnel : Bouton de suppression définitive si on est dans la corbeille #}
+                                <button onclick="deleteMail('{{ mail['id'] }}', '{{ folder }}')" class="dropbtn" style="color: #ef4444; font-size: 1rem;" title="Supprimer définitivement">✕</button>
+                            {% endif %}
                         </li>
                     {% endfor %}
-                {% endif %}
+{% endif %}
             </ul>
             <div id="noResults" style="display: none; text-align: center; padding: 50px; color: var(--text-muted);">Aucun résultat trouvé.</div>
         </div>
@@ -97,54 +112,65 @@
 </div>
 
 <script>
+    function deleteMail(id, folder) {
+        if (!confirm(folder === 'trash' ? 'Supprimer DÉFINITIVEMENT ?' : 'Mettre ce message à la corbeille ?')) return;
+
+        const formData = new FormData();
+        formData.append('username', '{{ username }}');
+        formData.append('folder', folder);
+        formData.append('id', id);
+
+        fetch('/api/delete', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'ok' || data.status === 'deleted' || data.status === 'moved_to_trash') {
+                window.location.reload();
+            } else {
+                alert('Erreur lors de la suppression');
+            }
+        })
+        .catch(err => console.error(err));
+    }
+
     document.getElementById('searchInput').addEventListener('input', function(e) {
         const term = e.target.value.toLowerCase();
         const items = document.querySelectorAll('.email-item');
         let hasResults = false;
 
         items.forEach(item => {
-            if (!item.dataset.originalSender) {
-                item.dataset.originalSender = item.querySelector('.email-sender').textContent;
-                item.dataset.originalSubject = item.querySelector('.email-subject').textContent;
-            }
-
             const senderEl = item.querySelector('.email-sender');
             const subjectEl = item.querySelector('.email-subject');
 
+            if (!item.dataset.originalSender) {
+                item.dataset.originalSender = senderEl.textContent;
+                item.dataset.originalSubject = subjectEl.textContent;
+            }
+
             const senderText = item.dataset.originalSender;
             const subjectText = item.dataset.originalSubject;
-
             const textToSearch = (senderText + ' ' + subjectText).toLowerCase();
 
             if (textToSearch.includes(term)) {
                 item.style.display = 'flex';
                 hasResults = true;
-
-                if (term.length > 0) {
-                    senderEl.innerHTML = highlightText(senderText, term);
-                    subjectEl.innerHTML = highlightText(subjectText, term);
-                } else {
-                    senderEl.textContent = senderText;
-                    subjectEl.textContent = subjectText;
-                }
+                senderEl.innerHTML = highlightText(senderText, term);
+                subjectEl.innerHTML = highlightText(subjectText, term);
             } else {
                 item.style.display = 'none';
             }
         });
 
         document.getElementById('noResults').style.display = hasResults ? 'none' : 'block';
-        const emptyMsg = document.querySelector('.email-list li');
-        if(emptyMsg && emptyMsg.textContent.includes('vide')) {
-             emptyMsg.style.display = term ? 'none' : 'block';
-        }
     });
 
     function highlightText(text, term) {
         if (!term) return text;
         const regex = new RegExp('(' + term + ')', 'gi');
-        return text.replace(regex, '<strong style="background-color: #fff3cd; color: #1f2937;">$1</strong>');
+        return text.replace(regex, '<strong style="background-color: #fff3cd;">$1</strong>');
     }
 </script>
-
 </body>
 </html>

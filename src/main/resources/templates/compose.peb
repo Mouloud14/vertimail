@@ -4,6 +4,32 @@
     <meta charset="UTF-8">
     <title>Nouveau Message | Vertimail</title>
     <link rel="stylesheet" href="/style.css">
+    <style>
+        /* Style pour la notification Toast */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-size: 1rem;
+            opacity: 0;
+            transition: opacity 0.3s, bottom 0.3s;
+        }
+
+        #toast.show {
+            visibility: visible;
+            opacity: 1;
+            bottom: 50px;
+        }
+    </style>
 </head>
 <body>
 
@@ -47,7 +73,7 @@
 
         <div class="scrollable-content">
             <div class="compose-container">
-                <form method="post" enctype="multipart/form-data">
+                <form id="composeForm" method="post" enctype="multipart/form-data">
                     {# Champ caché pour l'ID du brouillon #}
                     {% if draftId %}
                         <input type="hidden" name="draftId" value="{{ draftId }}">
@@ -81,13 +107,18 @@
 
                     <div style="display: flex; gap: 15px; margin-top: 20px;">
                         <button type="submit" formaction="/send" class="btn" style="width: auto;">Envoyer</button>
-                        <button type="submit" formaction="/draft" class="btn-secondary" style="margin-top: 0; width: auto;">Sauvegarder Brouillon</button>
+
+                        {# Bouton Brouillon en AJAX #}
+                        <button type="button" onclick="saveDraft()" class="btn-secondary" style="margin-top: 0; width: auto; cursor: pointer;">Sauvegarder Brouillon</button>
                     </div>
                 </form>
             </div>
         </div>
     </main>
 </div>
+
+{# Notification Toast #}
+<div id="toast">Brouillon sauvegardé !</div>
 
 <script>
     function updateFileList() {
@@ -102,6 +133,32 @@
             item.innerHTML = '📄 ' + file.name + ' <span style="color:#9ca3af; font-size:0.8em;">(' + (file.size / 1024).toFixed(1) + ' Ko)</span>';
             list.appendChild(item);
         }
+    }
+
+    function saveDraft() {
+        const form = document.getElementById('composeForm');
+        const formData = new FormData(form);
+
+        // On envoie vers /draft mais on ignore la redirection du serveur
+        fetch('/draft', {
+            method: 'POST',
+            body: formData
+        }).then(response => {
+            if (response.ok) {
+                showToast();
+            } else {
+                alert("Erreur lors de la sauvegarde.");
+            }
+        }).catch(err => {
+            console.error(err);
+            alert("Erreur réseau.");
+        });
+    }
+
+    function showToast() {
+        const toast = document.getElementById("toast");
+        toast.className = "show";
+        setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 3000);
     }
 </script>
 
